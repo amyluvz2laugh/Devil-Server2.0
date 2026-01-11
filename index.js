@@ -468,6 +468,14 @@ async function handleIntensify({ selectedText }) {
 // ============================================
 async function handleCharacterChat({ userMessage, characterId, characterName, personaType, chatbotInstructions, characterTags, storyTags, toneTags, chatHistory }) {
   console.log("💬 Character chat starting...");
+  console.log("=" .repeat(60));
+  console.log("INCOMING CHAT DATA:");
+  console.log("   Character:", characterName);
+  console.log("   Character Tags:", characterTags);
+  console.log("   Story Tags:", storyTags);
+  console.log("   Tone Tags:", toneTags);
+  console.log("   Chat history length:", chatHistory?.length || 0);
+  console.log("=" .repeat(60));
   
   if (!userMessage || userMessage.trim().length === 0) {
     throw new Error("No message provided");
@@ -487,6 +495,51 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   ]);
   
   console.log(`✅ Chat context fetched in ${Date.now() - contextStart}ms`);
+  console.log("=" .repeat(60));
+  console.log("CONTEXT DETAILS:");
+  console.log("=" .repeat(60));
+  
+  // Log character personality
+  if (characterContext) {
+    console.log("📝 CHARACTER PERSONALITY:");
+    console.log(characterContext.substring(0, 200) + "...");
+  } else {
+    console.log("⚠️ No character personality found");
+  }
+  
+  // Log related chapters
+  console.log("\n📚 RELATED CHAPTERS:");
+  if (relatedChapters.length > 0) {
+    relatedChapters.forEach((ch, idx) => {
+      console.log(`   [${idx + 1}] ${ch.title} (${ch.content.length} chars)`);
+      console.log(`       Preview: ${ch.content.substring(0, 100)}...`);
+    });
+  } else {
+    console.log("   ⚠️ No related chapters found");
+    console.log("   Searched for story tags:", storyTags);
+  }
+  
+  // Log catalyst intel
+  console.log("\n⚡ CATALYST INTEL:");
+  if (catalystIntel) {
+    console.log(catalystIntel.substring(0, 200) + "...");
+  } else {
+    console.log("   ⚠️ No catalyst intel found");
+    console.log("   Searched for character tags:", characterTags);
+  }
+  
+  // Log previous chat sessions
+  console.log("\n💬 PREVIOUS CHAT SESSIONS:");
+  if (chatHistoryContext.length > 0) {
+    console.log(`   Found ${chatHistoryContext.length} previous sessions`);
+    chatHistoryContext.forEach((session, idx) => {
+      console.log(`   Session ${idx + 1}: ${session.messages?.length || 0} messages`);
+    });
+  } else {
+    console.log("   ⚠️ No previous chat sessions found");
+  }
+  
+  console.log("=" .repeat(60));
   
   // ============================================
   // BUILD SYSTEM PROMPT WITH FULL CONTEXT
@@ -521,33 +574,26 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
     });
   }
   
-  // Add previous conversations
-  if (chatHistoryContext.length > 0) {
-    systemPrompt += `\n\nPREVIOUS CONVERSATIONS WITH THE AUTHOR:\n`;
-    chatHistoryContext.forEach((session, idx) => {
-      systemPrompt += `\n[Session ${idx + 1}]\n`;
-      session.messages?.slice(-5).forEach(msg => {
-        systemPrompt += `${msg.type === 'user' ? 'AUTHOR' : 'YOU'}: ${msg.text}\n`;
-      });
-    });
-  }
+  // Add previous conversations - ONLY LAST 10 MESSAGES FROM CURRENT SESSION
+  console.log("📝 Including chat history: LAST 10 MESSAGES from current session only");
   
-  console.log("📊 Chat context summary:");
+  console.log("\n📊 FINAL CONTEXT SUMMARY:");
   console.log("   Total prompt length:", systemPrompt.length, "chars");
   console.log("   Character personality:", personalityContext ? "YES" : "NO");
-  console.log("   Previous chat sessions:", chatHistoryContext.length);
   console.log("   Related chapters:", relatedChapters.length);
   console.log("   Catalyst intel:", catalystIntel ? "YES" : "NO");
+  console.log("   Current session messages:", chatHistory?.length || 0, "(sending last 10)");
+  console.log("=" .repeat(60));
   
+  // Only use the CURRENT chat session's last 10 messages
   const messages = [
     { role: "system", content: systemPrompt },
-    ...(chatHistory || []).slice(-10),
+    ...(chatHistory || []).slice(-10), // ONLY last 10 from CURRENT session
     { role: "user", content: userMessage }
   ];
   
   return await callAI(messages, 0.85, 500);
 }
-
 // ============================================
 // DEVIL POV (Original)
 // ============================================
@@ -984,6 +1030,7 @@ app.listen(PORT, () => {
   console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
+
 
 
 
