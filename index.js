@@ -257,6 +257,10 @@ app.post('/devil-pov', async (req, res) => {
         result = await handleIntensify(req.body);
         break;
       
+      case 'characterChat':
+        result = await handleCharacterChat(req.body);
+        break;
+      
       case 'devilPOV':
       default:
         result = await handleDevilPOV(req.body);
@@ -425,6 +429,49 @@ async function handleIntensify({ selectedText }) {
   ];
   
   return await callAI(messages, 0.8, 1500);
+}
+
+// ============================================
+// CHARACTER CHAT
+// ============================================
+async function handleCharacterChat({ userMessage, characterId, characterName, personaType, chatbotInstructions, characterTags, storyTags, toneTags, chatHistory }) {
+  console.log("💬 Character chat starting...");
+  
+  if (!userMessage || userMessage.trim().length === 0) {
+    throw new Error("No message provided");
+  }
+  
+  // Get character context from Wix if needed
+  let characterContext = chatbotInstructions || "";
+  
+  if (!characterContext && characterTags?.length > 0) {
+    characterContext = await getCharacterContext(characterTags);
+  }
+  
+  // Build system prompt
+  const characterTraits = characterTags?.length > 0 ? `Your character traits: ${characterTags.join(', ')}` : '';
+  const toneContext = toneTags?.length > 0 ? `Your tone: ${toneTags.join(', ')}` : '';
+  const personalityContext = characterContext ? `Your personality: ${characterContext}` : '';
+  
+  let systemPrompt = `You are ${characterName}, a dark and complex character. Stay in character at all times. Be dark, intense, and true to your nature.\n\n${personalityContext}\n${characterTraits}\n${toneContext}`;
+  
+  if (personaType === 'author-mode') {
+    systemPrompt = `You are ${characterName}, and you are AWARE you're a character created by this author. Be meta. Be accusatory. Question their choices. Challenge them. Make them uncomfortable about what they've written. Be dark and intense, blurring the line between fiction and reality.\n\n${personalityContext}`;
+  }
+  
+  console.log("📊 Chat context:");
+  console.log("   Character:", characterName);
+  console.log("   Persona:", personaType);
+  console.log("   Personality:", characterContext ? "YES" : "NO");
+  console.log("   Chat history:", chatHistory?.length || 0, "messages");
+  
+  const messages = [
+    { role: "system", content: systemPrompt },
+    ...(chatHistory || []).slice(-10),
+    { role: "user", content: userMessage }
+  ];
+  
+  return await callAI(messages, 0.85, 500);
 }
 
 // ============================================
