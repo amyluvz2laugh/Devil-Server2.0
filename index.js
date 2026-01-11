@@ -265,7 +265,34 @@ app.post('/devil-pov', async (req, res) => {
       default:
         result = await handleDevilPOV(req.body);
         break;
+
+        case 'overuse_scanner':
+    result = await handleOveruseScanner(req.body);
+    break;
+  
+  case 'pacing_analyzer':
+    result = await handlePacingAnalyzer(req.body);
+    break;
+  
+  case 'sentence_mechanics':
+    result = await handleSentenceMechanics(req.body);
+    break;
+  
+  case 'dialogue_critic':
+    result = await handleDialogueCritic(req.body);
+    break;
+  
+  case 'ai_critic':
+    result = await handleAICritic(req.body);
+    break;
+  
+  case 'structural_check':
+    result = await handleStructuralCheck(req.body);
+    break;
+  
+  // ... rest of existing cases ...
     }
+    
     
     console.log(`✅ ${action} completed in ${Date.now() - startTime}ms`);
     
@@ -282,6 +309,11 @@ app.post('/devil-pov', async (req, res) => {
       error: `${req.body.action || 'Action'} failed`,
       details: err.message 
     });
+    res.json({
+  status: 'success',
+  markers: result, // This is now the JSON array
+  processingTime: Date.now() - startTime
+});
   }
 });
 
@@ -553,6 +585,355 @@ ${toneContext}`;
 }
 
 // ============================================
+// MANUSCRIPT ANALYSIS TOOLS
+// ============================================
+
+// Special AI call for Claude Sonnet 4 (for analysis tools)
+async function callClaudeForAnalysis(messages, maxTokens = 3000) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("No API key configured");
+  }
+  
+  try {
+    console.log(`🔬 Using Claude Sonnet 4 for analysis`);
+    
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://amygonzalez305.wixsite.com/the-draft-reaper/devil-muse-server',
+        'X-Title': 'Devil Muse - Manuscript Analysis'
+      },
+      body: JSON.stringify({
+        model: "anthropic/claude-sonnet-4-20250514",
+        messages: messages,
+        temperature: 0.3, // Lower temp for analytical precision
+        max_tokens: maxTokens
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Claude API failed: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log(`✅ Claude Sonnet 4 analysis complete`);
+    return data.choices[0].message.content;
+    
+  } catch (error) {
+    console.error(`❌ Claude analysis error:`, error.message);
+    throw error;
+  }
+}
+
+// ============================================
+// OVERUSE SCANNER
+// ============================================
+async function handleOveruseScanner({ text }) {
+  console.log("🗡 Running Overuse Scanner...");
+  
+  if (!text || text.trim().length === 0) {
+    throw new Error("No text provided for analysis");
+  }
+  
+  const messages = [
+    {
+      role: "user",
+      content: `You are a ruthless manuscript editor analyzing for OVERUSE patterns.
+
+Analyze this chapter and identify:
+1. **Word repetition** (soft and hard) - words used excessively
+2. **Phrase echo** - repeated sentence structures or phrases
+3. **Crutch verbs** - overreliance on weak verbs (was, had, felt, seemed, etc.)
+4. **Favorite tells** - author's repetitive writing tics
+5. **Dialogue fillers** - "um," "well," "just," "actually," etc.
+
+For each finding, provide:
+- The specific issue
+- Frequency count
+- Severity (Minor/Moderate/Severe)
+- First occurrence location (approximate)
+
+Return your analysis as a JSON array of markers. Each marker must have:
+- "icon": an emoji representing the issue type
+- "type": the category (e.g., "Word Repetition", "Crutch Verb")
+- "message": brief description with frequency
+- "detail": expanded explanation and examples
+
+Example format:
+[
+  {
+    "icon": "🗡",
+    "type": "Word Repetition",
+    "message": "The word 'suddenly' appears 8 times - severe overuse",
+    "detail": "First occurrence: paragraph 2. This word loses impact through repetition. Consider alternatives: abruptly, without warning, in an instant."
+  }
+]
+
+CRITICAL: Return ONLY valid JSON. No preamble, no explanation, no markdown code blocks. Just the JSON array.
+
+Chapter text:
+${text}`
+    }
+  ];
+  
+  const response = await callClaudeForAnalysis(messages, 3000);
+  
+  // Parse JSON response
+  try {
+    const cleaned = response.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("Failed to parse JSON:", response);
+    throw new Error("Failed to parse analysis response");
+  }
+}
+
+// ============================================
+// PACING ANALYZER
+// ============================================
+async function handlePacingAnalyzer({ text }) {
+  console.log("🧠 Running Pacing Analyzer...");
+  
+  if (!text || text.trim().length === 0) {
+    throw new Error("No text provided for analysis");
+  }
+  
+  const messages = [
+    {
+      role: "user",
+      content: `You are a story pacing expert analyzing narrative momentum.
+
+Analyze this chapter for:
+1. **Long exposition clusters** - where narrative bogs down
+2. **Dialogue deserts** - stretches without character interaction
+3. **Action compression** - rushed sequences that need expansion
+4. **Emotional flatlines** - scenes lacking emotional variation
+5. **Tension drops** - where stakes or conflict diminish
+
+Return analysis as JSON array with these fields:
+- "icon": emoji for the pacing issue
+- "type": category name
+- "message": what's wrong and where
+- "detail": why it matters and impact on reader
+
+Return ONLY valid JSON array. No markdown, no explanation.
+
+Chapter text:
+${text}`
+    }
+  ];
+  
+  const response = await callClaudeForAnalysis(messages, 3000);
+  
+  try {
+    const cleaned = response.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error("Failed to parse pacing analysis");
+  }
+}
+
+// ============================================
+// SENTENCE MECHANICS
+// ============================================
+async function handleSentenceMechanics({ text }) {
+  console.log("🧬 Running Sentence Mechanics Lab...");
+  
+  if (!text || text.trim().length === 0) {
+    throw new Error("No text provided for analysis");
+  }
+  
+  const messages = [
+    {
+      role: "user",
+      content: `You are a prose mechanics surgeon analyzing sentence-level craft.
+
+Deep dive into:
+1. **Sentence length variance** - monotonous vs dynamic rhythm
+2. **Passive density** - overuse of passive voice
+3. **Clause stacking** - overly complex nested clauses
+4. **Rhythm irregularities** - awkward cadence or flow issues
+
+This is scalpel work, not grammar police. Focus on CRAFT.
+
+Return JSON array with:
+- "icon": relevant emoji
+- "type": mechanic category
+- "message": the specific issue
+- "detail": technical explanation and improvement path
+
+Return ONLY valid JSON array.
+
+Chapter text:
+${text}`
+    }
+  ];
+  
+  const response = await callClaudeForAnalysis(messages, 2500);
+  
+  try {
+    const cleaned = response.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error("Failed to parse mechanics analysis");
+  }
+}
+
+// ============================================
+// DIALOGUE CRITIC
+// ============================================
+async function handleDialogueCritic({ text }) {
+  console.log("🩸 Running Dialogue Blade Critic...");
+  
+  if (!text || text.trim().length === 0) {
+    throw new Error("No text provided for analysis");
+  }
+  
+  const messages = [
+    {
+      role: "user",
+      content: `You are a merciless dialogue critic with surgical precision.
+
+Analyze dialogue for:
+1. **Voice consistency** - does each character sound distinct?
+2. **Power imbalance** - who controls conversations and why
+3. **Subtext density** - what's said vs what's meant
+4. **On-the-nose alerts** - characters stating emotions directly
+
+Be brutal. No rewrites. Only judgment.
+
+Return JSON array with:
+- "icon": dialogue-related emoji
+- "type": issue category
+- "message": what's wrong
+- "detail": why it fails and what it reveals about craft
+
+Return ONLY valid JSON array.
+
+Chapter text:
+${text}`
+    }
+  ];
+  
+  const response = await callClaudeForAnalysis(messages, 2500);
+  
+  try {
+    const cleaned = response.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error("Failed to parse dialogue analysis");
+  }
+}
+
+// ============================================
+// AI CRITIC MODE
+// ============================================
+async function handleAICritic({ text, persona }) {
+  console.log(`🕯️ Running AI Critic Mode: ${persona}...`);
+  
+  if (!text || text.trim().length === 0) {
+    throw new Error("No text provided for critique");
+  }
+  
+  const personas = {
+    cold_editor: "You are a cold, ruthless editor who has seen thousands of manuscripts. You care about craft, not feelings. Be direct, surgical, and focus on what WORKS and what DOESN'T.",
+    market_hawk: "You are a market-savvy publishing hawk who knows what SELLS. Evaluate commercial viability, genre expectations, and reader engagement. Be pragmatic and business-focused.",
+    literary_judge: "You are a literary fiction judge who values prose artistry, thematic depth, and narrative innovation. Be intellectual and demanding about craft excellence.",
+    dark_romance_gatekeeper: "You are a dark romance gatekeeper who knows the genre inside out. Judge heat levels, power dynamics, emotional stakes, and whether this delivers what readers crave. Be fierce."
+  };
+  
+  const selectedPersona = personas[persona] || personas.cold_editor;
+  
+  const messages = [
+    {
+      role: "user",
+      content: `${selectedPersona}
+
+Read this chapter and provide your assessment in under 500 words.
+
+Focus on:
+- What works
+- What doesn't
+- Biggest issue to fix
+- Overall verdict
+
+NO EDITS. Only assessment.
+
+Return as JSON array with ONE marker:
+- "icon": "🎭"
+- "type": "${persona.replace('_', ' ').toUpperCase()}"
+- "message": "Overall Assessment"
+- "detail": Your full critique (under 500 words)
+
+Return ONLY valid JSON array.
+
+Chapter text:
+${text}`
+    }
+  ];
+  
+  const response = await callClaudeForAnalysis(messages, 3500);
+  
+  try {
+    const cleaned = response.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error("Failed to parse critic response");
+  }
+}
+
+// ============================================
+// STRUCTURAL INTEGRITY
+// ============================================
+async function handleStructuralCheck({ text }) {
+  console.log("🧿 Running Structural Integrity Check...");
+  
+  if (!text || text.trim().length === 0) {
+    throw new Error("No text provided for analysis");
+  }
+  
+  const messages = [
+    {
+      role: "user",
+      content: `You are a structural story architect analyzing narrative integrity.
+
+Examine:
+1. **Act alignment** - does structure follow proper story beats?
+2. **Promise vs payoff** - are setups resolved satisfyingly?
+3. **Foreshadow utilization** - planted elements that pay off
+4. **Chekhov violations** - guns on the wall that don't fire
+
+This is architectural, not line-level editing.
+
+Return JSON array with:
+- "icon": structure emoji
+- "type": structural element
+- "message": what's present or missing
+- "detail": impact on overall narrative
+
+Return ONLY valid JSON array.
+
+Chapter text:
+${text}`
+    }
+  ];
+  
+  const response = await callClaudeForAnalysis(messages, 2500);
+  
+  try {
+    const cleaned = response.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error("Failed to parse structural analysis");
+  }
+}
+
+// ============================================
 // START SERVER
 // ============================================
 const PORT = process.env.PORT || 3333;
@@ -561,3 +942,4 @@ app.listen(PORT, () => {
   console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
+
