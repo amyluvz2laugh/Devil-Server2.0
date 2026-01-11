@@ -608,7 +608,7 @@ async function callClaudeForAnalysis(messages, maxTokens = 3000) {
         'X-Title': 'Devil Muse - Manuscript Analysis'
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4-20250514",
+        model: "openai/gpt-3.5-turbo",
         messages: messages,
         temperature: 0.3, // Lower temp for analytical precision
         max_tokens: maxTokens
@@ -942,4 +942,5 @@ app.listen(PORT, () => {
   console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
+
 
