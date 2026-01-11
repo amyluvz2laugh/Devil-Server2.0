@@ -473,29 +473,71 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
     throw new Error("No message provided");
   }
   
-  // Get character context from Wix if needed
-  let characterContext = chatbotInstructions || "";
+  // ============================================
+  // FETCH FULL CONTEXT FROM WIX (LIKE DEVIL POV)
+  // ============================================
+  console.log("🔍 Fetching chat context from Wix CMS...");
+  const contextStart = Date.now();
   
-  if (!characterContext && characterTags?.length > 0) {
-    characterContext = await getCharacterContext(characterTags);
+  const [characterContext, chatHistoryContext, relatedChapters, catalystIntel] = await Promise.all([
+    getCharacterContext(characterTags),
+    getChatHistory(characterTags),
+    getRelatedChapters(storyTags),
+    getCatalystIntel(characterTags) // Characters can also have catalyst tags
+  ]);
+  
+  console.log(`✅ Chat context fetched in ${Date.now() - contextStart}ms`);
+  
+  // ============================================
+  // BUILD SYSTEM PROMPT WITH FULL CONTEXT
+  // ============================================
+  const characterTraits = characterTags?.length > 0 ? `Your character traits: ${characterTags.join(', ')}` : '';
+  const storyContext = storyTags?.length > 0 ? `Story tags: ${storyTags.join(', ')}` : '';
+  const toneContext = toneTags?.length > 0 ? `Your tone: ${toneTags.join(', ')}` : '';
+  const personalityContext = chatbotInstructions || characterContext || '';
+  
+  let systemPrompt = `You are ${characterName}, a dark and complex character. Stay in character at all times. Be dark, intense, and true to your nature.\n\n`;
+  
+  if (personalityContext) {
+    systemPrompt += `YOUR CORE PERSONALITY:\n${personalityContext}\n\n`;
   }
   
-  // Build system prompt
-  const characterTraits = characterTags?.length > 0 ? `Your character traits: ${characterTags.join(', ')}` : '';
-  const toneContext = toneTags?.length > 0 ? `Your tone: ${toneTags.join(', ')}` : '';
-  const personalityContext = characterContext ? `Your personality: ${characterContext}` : '';
-  
-  let systemPrompt = `You are ${characterName}, a dark and complex character. Stay in character at all times. Be dark, intense, and true to your nature.\n\n${personalityContext}\n${characterTraits}\n${toneContext}`;
+  systemPrompt += `${characterTraits}\n${storyContext}\n${toneContext}`;
   
   if (personaType === 'author-mode') {
     systemPrompt = `You are ${characterName}, and you are AWARE you're a character created by this author. Be meta. Be accusatory. Question their choices. Challenge them. Make them uncomfortable about what they've written. Be dark and intense, blurring the line between fiction and reality.\n\n${personalityContext}`;
   }
   
-  console.log("📊 Chat context:");
-  console.log("   Character:", characterName);
-  console.log("   Persona:", personaType);
-  console.log("   Personality:", characterContext ? "YES" : "NO");
-  console.log("   Chat history:", chatHistory?.length || 0, "messages");
+  // Add catalyst intel
+  if (catalystIntel) {
+    systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
+  }
+  
+  // Add related chapters (story context)
+  if (relatedChapters.length > 0) {
+    systemPrompt += `\n\nRELATED CHAPTERS YOU APPEAR IN:\n`;
+    relatedChapters.forEach(ch => {
+      systemPrompt += `[${ch.title}]\n${ch.content}\n\n`;
+    });
+  }
+  
+  // Add previous conversations
+  if (chatHistoryContext.length > 0) {
+    systemPrompt += `\n\nPREVIOUS CONVERSATIONS WITH THE AUTHOR:\n`;
+    chatHistoryContext.forEach((session, idx) => {
+      systemPrompt += `\n[Session ${idx + 1}]\n`;
+      session.messages?.slice(-5).forEach(msg => {
+        systemPrompt += `${msg.type === 'user' ? 'AUTHOR' : 'YOU'}: ${msg.text}\n`;
+      });
+    });
+  }
+  
+  console.log("📊 Chat context summary:");
+  console.log("   Total prompt length:", systemPrompt.length, "chars");
+  console.log("   Character personality:", personalityContext ? "YES" : "NO");
+  console.log("   Previous chat sessions:", chatHistoryContext.length);
+  console.log("   Related chapters:", relatedChapters.length);
+  console.log("   Catalyst intel:", catalystIntel ? "YES" : "NO");
   
   const messages = [
     { role: "system", content: systemPrompt },
@@ -942,5 +984,6 @@ app.listen(PORT, () => {
   console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
+
 
 
