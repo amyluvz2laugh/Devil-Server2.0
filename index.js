@@ -289,6 +289,10 @@ app.post('/devil-pov', async (req, res) => {
   case 'structural_check':
     result = await handleStructuralCheck(req.body);
     break;
+
+  case 'tag_generation':
+  result = await handleTagGeneration(req.body);
+  break;
   
   // ... rest of existing cases ...
     }
@@ -1039,9 +1043,9 @@ async function handleTagGeneration({ name, type }) {
   
   let prompt;
   if (type === 'character') {
-    prompt = `Generate a character tag. Rules: 1) Must start with @, 2) Format: @FirstLast or @FLast if no last name, 3) No spaces, PascalCase, 4) Remove special characters. Name: ${name}. Return ONLY the tag, nothing else.`;
+    prompt = `Generate a character tag. Rules: 1) Must start with @, 2) Format: @FirstLast or @FLast if no last name, 3) No spaces, PascalCase, 4) Remove special characters. Name: ${name}. ${existingTags?.length ? `Avoid these existing tags: ${existingTags.join(', ')}` : ''} Return ONLY the tag, nothing else.`;
   } else {
-    prompt = `Generate a story tag. Rules: 1) Must start with @, 2) Format: @TitleWithoutSpaces, 3) PascalCase, 4) Keep concise. Title: ${name}. Return ONLY the tag, nothing else.`;
+    prompt = `Generate a story tag. Rules: 1) Must start with @, 2) Format: @TitleWithoutSpaces, 3) PascalCase, 4) Keep concise. Title: ${name}. ${existingTags?.length ? `Avoid these existing tags: ${existingTags.join(', ')}` : ''} Return ONLY the tag, nothing else.`;
   }
   
   try {
@@ -1087,6 +1091,7 @@ app.listen(PORT, () => {
   console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
+
 
 
 
