@@ -586,13 +586,13 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   console.log("   Character personality:", personalityContext ? "YES" : "NO");
   console.log("   Related chapters:", relatedChapters.length);
   console.log("   Catalyst intel:", catalystIntel ? "YES" : "NO");
-  console.log("   Current session messages:", chatHistory?.length || 0, "(sending last 10)");
+  console.log("   Current session messages:", chatHistory?.length || 0, "(sending last 70)");
   console.log("=" .repeat(60));
   
   // Only use the CURRENT chat session's last 10 messages
   const messages = [
     { role: "system", content: systemPrompt },
-    ...(chatHistory || []).slice(-50), // ONLY last 10 from CURRENT session
+    ...(chatHistory || []).slice(-70), // ONLY last 70 from CURRENT session
     { role: "user", content: userMessage }
   ];
   
@@ -1091,6 +1091,7 @@ app.listen(PORT, () => {
   console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
+
 
 
 
