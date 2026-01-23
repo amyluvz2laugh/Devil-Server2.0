@@ -599,14 +599,10 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   return await callAI(messages, 0.85, 500);
 }
 // ============================================
-// DEVIL POV (Original)
+// DEVIL POV (Streamlined)
 // ============================================
-async function handleDevilPOV({ previousChapter, characterName, characterTags, storyTags, toneTags, catalystTags }) {
+async function handleDevilPOV({ characterName, characterTags, storyTags, toneTags, catalystTags }) {
   console.log("👿 Devil POV - Full context mode");
-  
-  if (!previousChapter) {
-    throw new Error("No chapter provided");
-  }
   
   // Fetch all context from Wix in parallel
   console.log("🔍 Fetching context from Wix CMS...");
@@ -627,13 +623,11 @@ async function handleDevilPOV({ previousChapter, characterName, characterTags, s
   const toneContext = toneTags?.length > 0 ? `Tone: ${toneTags.join(', ')}` : '';
   
   let systemPrompt = `You are ${characterName || 'the antagonist'}, a dark and complex character. 
-
-Write from YOUR perspective in response to what the author just wrote. Be DARK, VISCERAL, and UNAPOLOGETICALLY YOURSELF. Show your motivations, your twisted logic, your desires. Make the reader uncomfortable. Make them understand you even as they fear you.
-
+Write from YOUR perspective based on the story context and what's happened so far. Be DARK, VISCERAL, and UNAPOLOGETICALLY YOURSELF. Show your motivations, your twisted logic, your desires. Make the reader uncomfortable. Make them understand you even as they fear you.
 ${characterTraits}
 ${storyContext}
 ${toneContext}`;
-
+  
   if (characterContext) {
     systemPrompt += `\n\nYOUR CORE PERSONALITY:\n${characterContext}`;
   }
@@ -659,7 +653,7 @@ ${toneContext}`;
     });
   }
   
-  systemPrompt += `\n\nWrite ONLY the chapter from your POV. No explanations, no meta-commentary. Pure character voice. This is YOUR response to what just happened.`;
+  systemPrompt += `\n\nWrite the next chapter from your POV based on everything above. No explanations, no meta-commentary. Pure character voice. Continue the story from YOUR dark perspective.`;
   
   console.log("📊 Context summary:");
   console.log("   Total prompt length:", systemPrompt.length, "chars");
@@ -670,7 +664,7 @@ ${toneContext}`;
   
   const result = await callAI([
     { role: "system", content: systemPrompt },
-    { role: "user", content: `This is what the author just wrote:\n\n${previousChapter}\n\nNow write YOUR response to these events from your twisted perspective:` }
+    { role: "user", content: `Write the next chapter from your twisted perspective, picking up from where the story left off:` }
   ], 0.9, 2500);
   
   return result;
@@ -1091,6 +1085,7 @@ app.listen(PORT, () => {
   console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
+
 
 
 
