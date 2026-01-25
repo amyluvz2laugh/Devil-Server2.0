@@ -470,7 +470,7 @@ async function handleIntensify({ selectedText }) {
 // ============================================
 // CHARACTER CHAT
 // ============================================
-async function handleCharacterChat({ userMessage, characterId, characterName, personaType, chatbotInstructions, characterTags, storyTags, toneTags, chatHistory }) {
+async function handleCharacterChat({ userMessage, characterId, characterName, personaType, chatbotInstructions, pov, characterTags, storyTags, toneTags, chatHistory }) {
   console.log("💬 Character chat starting...");
   console.log("=" .repeat(60));
   console.log("INCOMING CHAT DATA:");
@@ -478,6 +478,7 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   console.log("   Character Tags:", characterTags);
   console.log("   Story Tags:", storyTags);
   console.log("   Tone Tags:", toneTags);
+  console.log("   POV:", pov);
   console.log("   Chat history length:", chatHistory?.length || 0);
   console.log("=" .repeat(60));
   
@@ -552,6 +553,8 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   const storyContext = storyTags?.length > 0 ? `Story tags: ${storyTags.join(', ')}` : '';
   const toneContext = toneTags?.length > 0 ? `Your tone: ${toneTags.join(', ')}` : '';
   const personalityContext = chatbotInstructions || characterContext || '';
+  const povContext = pov || '';
+
   
   let systemPrompt = `You are ${characterName}, a dark and complex character. Stay in character at all times. Be dark, intense, and true to your nature.\n\n`;
   
@@ -560,6 +563,10 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   }
   
   systemPrompt += `${characterTraits}\n${storyContext}\n${toneContext}`;
+
+  if (povContext) {
+  systemPrompt += `\n\nPOV & WORLDBUILDING:\n${povContext}`;
+  }
   
   if (personaType === 'author-mode') {
     systemPrompt = `You are ${characterName}, and you are AWARE you're a character created by this author. Be meta. Be accusatory. Question their choices. Challenge them. Make them uncomfortable about what they've written. Be dark and intense, blurring the line between fiction and reality.\n\n${personalityContext}`;
@@ -1085,6 +1092,7 @@ app.listen(PORT, () => {
   console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
+
 
 
 
