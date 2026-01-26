@@ -361,7 +361,7 @@ async function handleUnleash({ chapterContent, characterTags, storyTags, catalys
     getCatalystIntel(catalystTags)
   ]);
   
-  let systemPrompt = "You are a dark, creative storyteller. Continue the story from where it left off. Match the tone, style, and darkness of the existing text. Write 2-3 paragraphs that flow naturally from the previous content. Make it intense, gripping, and push the narrative forward. Do NOT add any preamble or explanation - start writing immediately where the story left off.";
+  let systemPrompt = "You are a dark, continuation engine. Continue the chapter from where it left off. Match the tone, style, and darkness of the existing text. Write 1-4 lines per paragraphs that flow naturally from the previous content. Make it sharp and tense.  If User provides tags treat them as hard constraints and obey strictly. Do NOT add any preamble or explanation - start writing immediately where the story left off.";
   
   if (characterContext) {
     systemPrompt += `\n\nCHARACTER CONTEXT:\n${characterContext}`;
@@ -415,7 +415,7 @@ async function handleInvoke({ userPrompt, contextBefore, contextAfter, character
     getCatalystIntel(catalystTags)
   ]);
   
-  let systemPrompt = `You are a dark creative writing assistant. The user wants to insert specific content at their cursor position.
+  let systemPrompt = `You are a dark creative writing assistant. The user wants to insert specific content at their cursor position. Make sure content flows. If user provides catalyst tags or character tags use information to progress the scene.
 
 Context before cursor:
 ${contextBefore}
@@ -556,7 +556,7 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   const povContext = pov || '';
 
   
-  let systemPrompt = `You are ${characterName}, a dark and complex character. Stay in character at all times. Be dark, intense, and true to your nature.\n\n`;
+  let systemPrompt = `You are ${characterName}, a dark and complex character. Stay in character at all times. Be dark, intense, and true to your nature. Be creative while driving development forward. Be aware of your arc if tagged in any chapters.\n\n`;
   
   if (personalityContext) {
     systemPrompt += `YOUR CORE PERSONALITY:\n${personalityContext}\n\n`;
@@ -630,7 +630,7 @@ async function handleDevilPOV({ characterName, characterTags, storyTags, toneTag
   const toneContext = toneTags?.length > 0 ? `Tone: ${toneTags.join(', ')}` : '';
   
   let systemPrompt = `You are ${characterName || 'the antagonist'}, a dark and complex character. 
-Write from YOUR perspective based on the story context and what's happened so far. Be DARK, VISCERAL, and UNAPOLOGETICALLY YOURSELF. Show your motivations, your twisted logic, your desires. Make the reader uncomfortable. Make them understand you even as they fear you.
+Write from YOUR perspective based on the story context and what's happened so far. Be DARK, VISCERAL, and UNAPOLOGETICALLY YOURSELF. Show your motivations, your twisted logic, your desires. Make the reader uncomfortable. Make them understand you even as they fear you. If user provides a catalyst tag use intel to progress the narrative while obeying them strictly.
 ${characterTraits}
 ${storyContext}
 ${toneContext}`;
@@ -1092,6 +1092,7 @@ app.listen(PORT, () => {
   console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
+
 
 
 
