@@ -52,6 +52,7 @@ async function callAI(messages, temperature = 0.9, maxTokens = 2500, buttonType 
           max_tokens: maxTokens
         })
       });
+    
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -140,6 +141,15 @@ async function queryWixCMS(collection, filter = {}, limit = 10) {
         }
       })
     });
+
+    // TEMP DEBUG
+console.log(`🔍 DEBUG ${collection}:`, {
+  status: response.status,
+  statusText: response.statusText,
+  siteId: WIX_SITE_ID?.slice(0, 8) + '...',
+  hasApiKey: !!WIX_API_KEY,
+  apiKeyPrefix: WIX_API_KEY?.slice(0, 15) + '...'
+});
     
     if (!response.ok) {
       const errorText = await response.text();
