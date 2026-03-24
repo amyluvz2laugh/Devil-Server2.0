@@ -123,7 +123,7 @@ function logTrainingData(buttonType, messages, output, model) {
 async function queryWixCMS(collection, filter = {}, limit = 10) {
   try {
     console.log(`🔍 Querying Wix collection: ${collection}`);
-    console.log(`🔍 FILTER SENT ${collection}:`, JSON.stringify(filter));
+    
     const response = await fetch(`https://www.wixapis.com/wix-data/v2/items/query`, {
       method: 'POST',
       headers: {
@@ -135,46 +135,22 @@ async function queryWixCMS(collection, filter = {}, limit = 10) {
       body: JSON.stringify({
         dataCollectionId: collection,
         query: {
-          filter: filter,  
+          filter: filter,
           sort: [],
           paging: { limit: limit }
         }
       })
     });
-
-    // TEMP DEBUG
-console.log(`🔍 DEBUG ${collection}:`, {
-  status: response.status,
-  statusText: response.statusText,
-  siteId: WIX_SITE_ID?.slice(0, 8) + '...',
-  hasApiKey: !!WIX_API_KEY,
-  apiKeyPrefix: WIX_API_KEY?.slice(0, 15) + '...'
-});
     
-  
     if (!response.ok) {
-  const errorText = await response.text();
-  console.error(`❌ Wix API error for ${collection}:`, errorText);
-  console.error(`❌ Filter sent:`, JSON.stringify(filter));  // ADD THIS
-  return { items: [] };
-}
-    
+      const errorText = await response.text();
+      console.error(`❌ Wix API error for ${collection}:`, errorText);
+      return { items: [] };
+    }
     
     const data = await response.json();
-console.log(`🔍 RAW RESPONSE ${collection}:`, JSON.stringify(data).substring(0, 500));
-
-// ADD THIS
-if (!data.dataItems || data.dataItems.length === 0) {
-  console.log(`⚠️ EMPTY RESPONSE DEBUG ${collection}:`, {
-    fullResponse: JSON.stringify(data),
-    filterSent: JSON.stringify(filter),
-    collectionId: collection,
-    siteId: WIX_SITE_ID
-  });
-}
-    // THIS LINE WAS MISSING
-console.log(`✅ Found ${data.dataItems?.length || 0} items in ${collection}`);
-return { items: data.dataItems || [] };
+    console.log(`✅ Found ${data.dataItems?.length || 0} items in ${collection}`);
+    return { items: data.dataItems || [] };
     
   } catch (error) {
     console.error(`❌ Error querying ${collection}:`, error);
