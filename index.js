@@ -180,10 +180,8 @@ async function getCharacterContext(characterTags) {
   
   const charTag = Array.isArray(characterTags) ? characterTags[0] : characterTags;
   console.log("👤 Fetching character:", charTag);
-  
-  const result = await queryWixCMS("Characters", {
-    charactertags: { $eq: charTag }
-  }, 1);
+
+  const result = await queryWixCMS("Characters", {}, 10);
   
   if (result.items.length > 0) {
     const personality = result.items[0].data?.chatbot || "";
