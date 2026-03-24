@@ -124,8 +124,8 @@ async function queryWixCMS(collection, filter = {}, limit = 10) {
   try {
     console.log(`🔍 Querying Wix collection: ${collection}`);
     
-    const response = await fetch(`https://www.wixapis.com/wix-data/v2/items/query`, {
-      method: 'POST',
+    const response = await fetch(`https://www.wixapis.com/wix-data/v1/collections/${collection}/items`, {
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': WIX_API_KEY,
