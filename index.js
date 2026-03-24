@@ -123,7 +123,7 @@ function logTrainingData(buttonType, messages, output, model) {
 async function queryWixCMS(collection, filter = {}, limit = 10) {
   try {
     console.log(`🔍 Querying Wix collection: ${collection}`);
-    
+    console.log(`🔍 FILTER SENT ${collection}:`, JSON.stringify(filter));
     const response = await fetch(`https://www.wixapis.com/wix-data/v2/items/query`, {
       method: 'POST',
       headers: {
@@ -181,7 +181,9 @@ async function getCharacterContext(characterTags) {
   const charTag = Array.isArray(characterTags) ? characterTags[0] : characterTags;
   console.log("👤 Fetching character:", charTag);
 
-  const result = await queryWixCMS("Characters", {}, 10);
+  const result = await queryWixCMS("Characters", {
+  charactertags: { $eq: charTag }
+}, 1);
   
   if (result.items.length > 0) {
     const personality = result.items[0].data?.chatbot || "";
