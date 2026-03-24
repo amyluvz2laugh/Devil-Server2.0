@@ -135,7 +135,7 @@ async function queryWixCMS(collection, filter = {}, limit = 10) {
       body: JSON.stringify({
         dataCollectionId: collection,
         query: {
-          filter: filter,
+          filter: JSON.stringify(filter),  // 👈 stringify the filter
           sort: [],
           paging: { limit: limit }
         }
