@@ -159,10 +159,20 @@ console.log(`🔍 DEBUG ${collection}:`, {
   return { items: [] };
 }
     
+    
     const data = await response.json();
-    console.log(`🔍 RAW RESPONSE ${collection}:`, JSON.stringify(data));  // ADD THIS
-    console.log(`✅ Found ${data.dataItems?.length || 0} items in ${collection}`);
-    return { items: data.dataItems || [] };
+console.log(`🔍 RAW RESPONSE ${collection}:`, JSON.stringify(data).substring(0, 500));
+
+// ADD THIS
+if (!data.dataItems || data.dataItems.length === 0) {
+  console.log(`⚠️ EMPTY RESPONSE DEBUG ${collection}:`, {
+    fullResponse: JSON.stringify(data),
+    filterSent: JSON.stringify(filter),
+    collectionId: collection,
+    siteId: WIX_SITE_ID
+  });
+}
+    
     
   } catch (error) {
     console.error(`❌ Error querying ${collection}:`, error);
