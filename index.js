@@ -160,6 +160,7 @@ console.log(`🔍 DEBUG ${collection}:`, {
 }
     
     const data = await response.json();
+    console.log(`🔍 RAW RESPONSE ${collection}:`, JSON.stringify(data));  // ADD THIS
     console.log(`✅ Found ${data.dataItems?.length || 0} items in ${collection}`);
     return { items: data.dataItems || [] };
     
