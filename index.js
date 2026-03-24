@@ -182,7 +182,9 @@ async function getCharacterContext(characterTags) {
   console.log("👤 Fetching character:", charTag);
 
   const result = await queryWixCMS("Characters", {
-  charactertags: { $contains: "DamienRossi" }
+  "$and": [
+    { "charactertags": { "$eq": "@DamienRossi" } }
+  ]
 }, 1);
   
   if (result.items.length > 0) {
