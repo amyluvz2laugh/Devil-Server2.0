@@ -172,7 +172,9 @@ if (!data.dataItems || data.dataItems.length === 0) {
     siteId: WIX_SITE_ID
   });
 }
-    
+    // THIS LINE WAS MISSING
+console.log(`✅ Found ${data.dataItems?.length || 0} items in ${collection}`);
+return { items: data.dataItems || [] };
     
   } catch (error) {
     console.error(`❌ Error querying ${collection}:`, error);
@@ -192,10 +194,8 @@ async function getCharacterContext(characterTags) {
   console.log("👤 Fetching character:", charTag);
 
   const result = await queryWixCMS("Characters", {
-  "$and": [
-    { "charactertags": { "$eq": "@DamienRossi" } }
-  ]
-}, 1);
+    charactertags: { $eq: charTag }
+  }, 1);
   
   if (result.items.length > 0) {
     const personality = result.items[0].data?.chatbot || "";
