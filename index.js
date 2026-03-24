@@ -131,15 +131,18 @@ async function queryWixCMS(collection, filter = {}, limit = 10) {
         'Authorization': WIX_API_KEY,
         'wix-site-id': WIX_SITE_ID,
         'wix-account-id': WIX_ACCOUNT_ID
+        
       },
       body: JSON.stringify({
-        dataCollectionId: collection,
-        query: {
-          filter: filter,
-          sort: [],
-          paging: { limit: limit }
-        }
-      })
+  dataCollectionId: collection,
+  query: {
+    filter: filter,
+    sort: [],
+    paging: { limit: limit }
+  },
+  suppressAuth: true
+})
+        
     });
     
     if (!response.ok) {
