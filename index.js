@@ -135,7 +135,7 @@ async function queryWixCMS(collection, filter = {}, limit = 10) {
       body: JSON.stringify({
         dataCollectionId: collection,
         query: {
-          filter: JSON.stringify(filter),  // 👈 stringify the filter
+          filter: filter,  
           sort: [],
           paging: { limit: limit }
         }
@@ -151,11 +151,13 @@ console.log(`🔍 DEBUG ${collection}:`, {
   apiKeyPrefix: WIX_API_KEY?.slice(0, 15) + '...'
 });
     
+  
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Wix API error for ${collection}:`, errorText);
-      return { items: [] };
-    }
+  const errorText = await response.text();
+  console.error(`❌ Wix API error for ${collection}:`, errorText);
+  console.error(`❌ Filter sent:`, JSON.stringify(filter));  // ADD THIS
+  return { items: [] };
+}
     
     const data = await response.json();
     console.log(`✅ Found ${data.dataItems?.length || 0} items in ${collection}`);
