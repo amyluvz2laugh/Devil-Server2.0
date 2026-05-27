@@ -25,6 +25,9 @@ app.options('*', cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+app.get('*path', handler)
+app.options('*', cors())
+
 // Wix API configuration
 const WIX_API_KEY = process.env.WIX_API_KEY;
 const WIX_ACCOUNT_ID = process.env.WIX_ACCOUNT_ID;
