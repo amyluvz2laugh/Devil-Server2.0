@@ -2,15 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 
-// ✅ CORS must be first, before anything else
+// CORS first
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
-  credentials: false  // ← must be false when origin is '*'
+  credentials: false
 }));
 
-// ✅ Handle preflight BEFORE routes
+// Preflight handler
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -21,12 +21,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.options('*', cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-app.get('*path', handler)
-app.options('*', cors())
 
 // Wix API configuration
 const WIX_API_KEY = process.env.WIX_API_KEY;
