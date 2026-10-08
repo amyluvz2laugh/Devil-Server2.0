@@ -641,7 +641,7 @@ async function handleIntensify({ selectedText }) {
 // ============================================
 // CHARACTER CHAT
 // ============================================
-async function handleCharacterChat({ userMessage, characterId, characterName, personaType, chatbotInstructions, pov, characterTags, storyTags, toneTags, chatHistory }) {
+async function handleCharacterChat({ userMessage, characterId, characterName, personaType, chatbotInstructions, pov, characterTags, storyTags, toneTags, chatHistory, wraithTags, loreTags }) {
   console.log("💬 Character chat starting...");
   console.log("=" .repeat(60));
   console.log("INCOMING CHAT DATA:");
@@ -663,11 +663,13 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   console.log("🔍 Fetching chat context from Wix CMS...");
   const contextStart = Date.now();
   
-  const [characterContext, chatHistoryContext, relatedChapters, catalystIntel] = await Promise.all([
+  const [characterContext, chatHistoryContext, relatedChapters, catalystIntel, wraithRecord, loreIntel] = await Promise.all([
     getCharacterContext(characterTags),
     getChatHistory(characterTags),
     getRelatedChapters(storyTags),
     getCatalystIntel(characterTags) // Characters can also have catalyst tags
+    getWraithRecordTags(wraithTags),
+    getLorebookTags(loreTags)
   ]);
   
   console.log(`✅ Chat context fetched in ${Date.now() - contextStart}ms`);
