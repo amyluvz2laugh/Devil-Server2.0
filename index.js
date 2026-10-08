@@ -1266,7 +1266,7 @@ ${text}`
 // ROUTE — add wherever your other routes are registered.
 // Assumes Express with express.json() already set up.
 // ---------------------------------------------------------------
-app.post('/api/chapter-created', (req, res) => {
+app.post('/devil-pov',', (req, res) => {
   if (!CHAPTER_HOOK_TOKEN || req.headers['x-hook-token'] !== CHAPTER_HOOK_TOKEN) {
     return res.status(403).json({ error: 'Forbidden' });
   }
