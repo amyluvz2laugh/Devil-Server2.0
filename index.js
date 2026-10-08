@@ -1249,7 +1249,7 @@ async function handleChapterSummary({ chapterId }) {
       role: "user",
       content: `You are summarizing a chapter of a novel manuscript for the author's own reference.
 
-${previousContext}Write a summary of the chapter below in 1-5 lines. Cover the key events, any shift in character dynamics, and any open threads. Plain text only, no headers, no bullets, no preamble.
+${previousContext}Write a summary of the chapter below in 1-3 lines of summary and 1-2 lines of foreshadowing. Cover the key events, any shift in character dynamics, and any open threads. Plain text only, no headers, no bullets, no preamble.
 
 Chapter text:
 ${text}`
