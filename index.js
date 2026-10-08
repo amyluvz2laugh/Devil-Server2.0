@@ -376,7 +376,8 @@ app.get('/download-training-data', (req, res) => {
 
   case 'chapter_summary':
      result = await handleChapterSummary(req.body);
-     break;      
+     break;  
+     
 
   case 'tag_generation':
   result = await handleTagGeneration(req.body);
@@ -789,7 +790,7 @@ async function callClaudeForAnalysis(messages, maxTokens = 3000) {
         'X-Title': 'Devil Muse - Manuscript Analysis'
       },
       body: JSON.stringify({
-        model: "openai/gpt-3.5-turbo",
+        model: "anthropic/claude-sonnet-4",
         messages: messages,
         temperature: 0.3, // Lower temp for analytical precision
         max_tokens: maxTokens
@@ -1119,71 +1120,24 @@ ${text}`
 // Paste below your other handlers in index.js. Reuses your existing
 // callClaudeForAnalysis() and WIX_API_KEY / WIX_ACCOUNT_ID / WIX_SITE_ID.
 // ============================================
-const CHAPTER_HOOK_TOKEN = process.env.CHAPTER_HOOK_TOKEN;
-const summaryInFlight = new Set();
+async function handleChapterSummary({ chapterId }) {
+  console.log(`📝 Generating summary for chapter ${chapterId}...`);
  
-// Insert/update helper (your queryWixCMS only reads)
-async function wixWrite(path, body, method = 'POST') {
-  const response = await fetch(`https://www.wixapis.com${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': WIX_API_KEY,
-      'wix-site-id': WIX_SITE_ID,
-      'wix-account-id': WIX_ACCOUNT_ID
-    },
-    body: JSON.stringify(body)
-  });
-  if (!response.ok) {
-    throw new Error(`Wix write failed: ${response.status} ${await response.text()}`);
-  }
-  return response.json();
-}
+  if (!chapterId) throw new Error("chapterId required");
  
-// Called by the switch. Returns instantly; the real work runs in the background.
-async function handleChapterSummary({ token, storyId, previousChapterId }) {
-  if (!CHAPTER_HOOK_TOKEN || token !== CHAPTER_HOOK_TOKEN) {
-    throw new Error("Unauthorized");
-  }
-  if (!storyId || !previousChapterId) {
-    throw new Error("storyId and previousChapterId required");
-  }
-  if (summaryInFlight.has(previousChapterId)) return "already_processing";
- 
-  summaryInFlight.add(previousChapterId);
-  generateChapterSummary({ storyId, previousChapterId })
-    .catch((err) => console.error("❌ Chapter summary failed:", err.message))
-    .finally(() => summaryInFlight.delete(previousChapterId));
- 
-  return "queued";
-}
- 
-async function generateChapterSummary({ storyId, previousChapterId }) {
-  console.log(`📝 Summarizing finished chapter ${previousChapterId}...`);
- 
-  // Is there already a Chapters record (and a summary) for this chapter?
-  const existing = await queryWixCMS("Chapters", { chapters: { $eq: previousChapterId } }, 1);
-  const record = existing.items[0] || null;
- 
-  if (record && record.data?.summary && record.data.summary.trim() !== "") {
-    console.log("⏭️ Summary already exists, skipping (never overwrite user edits)");
-    return;
-  }
- 
-  // Get the finished chapter's text
-  const found = await queryWixCMS("BackupChapters", { _id: { $eq: previousChapterId } }, 1);
-  if (found.items.length === 0) throw new Error("Previous chapter not found in BackupChapters");
+  const found = await queryWixCMS("BackupChapters", { _id: { $eq: chapterId } }, 1);
+  if (found.items.length === 0) throw new Error("Chapter not found in BackupChapters");
  
   const chapter = found.items[0].data;
   const text = chapter.chapterContent || "";
-  if (text.trim().length === 0) throw new Error("Previous chapter has no content");
+  if (text.trim().length === 0) throw new Error("Chapter has no content yet");
  
   const messages = [
     {
       role: "user",
-      content: `You are summarizing a finished chapter of a novel manuscript for the author's own reference.
+      content: `You are summarizing a chapter of a novel manuscript for the author's own reference.
  
-Write a summary in 1-3 lines with 1-2 lines of foreshadowing. Cover the key events, any shift in character dynamics, and any open threads. Plain text only, no headers, no bullets, no preamble.
+Write a summary in no more than 5 lines. 1-3 lines covering the chapter and 1-2 lines of foreshadowing. Cover the key events, any shift in character dynamics, and any open threads. Plain text only, no headers, no bullets, no preamble.
  
 Chapter title: ${chapter.title || "Untitled"}
  
@@ -1193,26 +1147,10 @@ ${text}`
   ];
  
   const summary = (await callClaudeForAnalysis(messages, 400)).trim();
- 
-  // Save to the Chapters collection: summary + story ref + chapter ref
-  if (record) {
-    const data = {};
-    Object.keys(record.data).forEach((k) => { if (!k.startsWith('_')) data[k] = record.data[k]; });
-    Object.assign(data, { summary, story: storyId, chapters: previousChapterId });
- 
-    await wixWrite(`/wix-data/v2/items/${record.id}`, {
-      dataCollectionId: "Chapters",
-      dataItem: { id: record.id, data }
-    }, 'PUT');
-  } else {
-    await wixWrite('/wix-data/v2/items', {
-      dataCollectionId: "Chapters",
-      dataItem: { data: { summary, story: storyId, chapters: previousChapterId } }
-    });
-  }
- 
-  console.log(`✅ Summary saved for chapter ${previousChapterId}`);
+  console.log(`✅ Summary generated for chapter ${chapterId}`);
+  return summary;
 }
+ 
 // ============================================
 // TAG JANITOR
 // ============================================
