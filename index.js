@@ -288,6 +288,88 @@ async function getCatalystIntel(catalystTags) {
   return "";
 }
 
+
+// ============================================
+// CLEAN WIX ITEM DATA (strips system fields + empties)
+// ============================================
+function cleanItemData(data = {}) {
+  const skip = ['_id', '_owner', '_createdDate', '_updatedDate'];
+  const cleaned = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (skip.includes(key)) continue;
+    if (value === undefined || value === null || value === "") continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    cleaned[key] = value;
+  }
+  return cleaned;
+}
+
+// ============================================
+// GET WRAITH RECORD FROM WIX
+// ============================================
+async function getWraithRecordTags(wraithTags) {
+  if (!wraithTags || wraithTags.length === 0) {
+    return "";
+  }
+
+  const tags = (Array.isArray(wraithTags) ? wraithTags : [wraithTags]).filter(Boolean);
+  console.log("👻 Fetching wraith record:", tags);
+
+  const fields = ["locationTag", "ritualTag", "symboltag"];
+  const conditions = [];
+  tags.forEach(tag => {
+    fields.forEach(field => {
+      conditions.push({ [field]: { $contains: tag } });
+    });
+  });
+
+  const result = await queryWixCMS("WraithRecords", { $or: conditions }, 3);
+
+  if (result.items.length > 0) {
+    const wraithInfo = result.items
+      .map(item => JSON.stringify(cleanItemData(item.data), null, 2))
+      .join("\n\n");
+    console.log(`✅ Wraith record: ${result.items.length} found`);
+    return wraithInfo;
+  }
+
+  console.log("⚠️ No wraith record found for these tags");
+  return "";
+}
+
+// ============================================
+// GET LOREBOOK FROM WIX
+// ============================================
+async function getLorebookTags(loreTags) {
+  if (!loreTags || loreTags.length === 0) {
+    return "";
+  }
+
+  const tags = (Array.isArray(loreTags) ? loreTags : [loreTags]).filter(Boolean);
+  console.log("📖 Fetching lorebook entries:", tags);
+
+  const fields = ["orgTag", "bloodlinesTag", "lawTag", "magicTag", "secretsTag", "mythTag"];
+  const conditions = [];
+  tags.forEach(tag => {
+    fields.forEach(field => {
+      conditions.push({ [field]: { $contains: tag } });
+    });
+  });
+
+  const result = await queryWixCMS("Lorebook", { $or: conditions }, 5);
+
+  if (result.items.length > 0) {
+    const loreInfo = result.items
+      .map(item => JSON.stringify(cleanItemData(item.data), null, 2))
+      .join("\n\n");
+    console.log(`✅ Lorebook: ${result.items.length} entries found`);
+    return loreInfo;
+  }
+
+  console.log("⚠️ No lorebook entries found for these tags");
+  return "";
+}
+
 // ============================================
 // UNIFIED /devil-pov ENDPOINT - ALL ACTIONS
 // ============================================
@@ -665,6 +747,13 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
   }
+    if (wraithRecord) {
+    systemPrompt += `\n\nWRAITH RECORD:\n${wraithRecord}`;
+  }
+  
+  if (loreIntel) {
+    systemPrompt += `\n\nLOREBOOK:\n${loreIntel}`;
+  }
   
   // Add related chapters (story context)
   if (relatedChapters.length > 0) {
@@ -682,7 +771,9 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   console.log("   Character personality:", personalityContext ? "YES" : "NO");
   console.log("   Related chapters:", relatedChapters.length);
   console.log("   Catalyst intel:", catalystIntel ? "YES" : "NO");
-  console.log("   Current session messages:", chatHistory?.length || 0, "(sending last 70)");
+  console.log("   Wraith record:", wraithRecord ? "YES" : "NO");
+  console.log("   Lorebook:", loreIntel ? "YES" : "NO");
+  console.log("   Current session messages:", chatHistory?.length || 0, "(sending last 10)");
   console.log("=" .repeat(60));
   
   // Only use the CURRENT chat session's last 10 messages
@@ -697,7 +788,7 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
 // ============================================
 // DEVIL POV (Streamlined)
 // ============================================
-async function handleDevilPOV({ characterName, characterTags, storyTags, toneTags, catalystTags }) {
+async function handleDevilPOV({ characterName, characterTags, storyTags, toneTags, catalystTags, wraithrecordTags, lorebookTags }) {
   console.log("👿 Devil POV - Full context mode");
   
   // Fetch all context from Wix in parallel
@@ -708,7 +799,9 @@ async function handleDevilPOV({ characterName, characterTags, storyTags, toneTag
     getCharacterContext(characterTags),
     getChatHistory(characterTags),
     getRelatedChapters(storyTags),
-    getCatalystIntel(catalystTags)
+    getCatalystIntel(catalystTags),
+    getWraithRecordTags(wraithTags),
+    getLorebookTags(loreTags)
   ]);
   
   console.log(`✅ Context fetched in ${Date.now() - contextStart}ms`);
