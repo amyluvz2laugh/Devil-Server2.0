@@ -374,6 +374,10 @@ app.get('/download-training-data', (req, res) => {
     result = await handleStructuralCheck(req.body);
     break;
 
+  case 'chapter_summary':
+     result = await handleChapterSummary(req.body);
+     break;      
+
   case 'tag_generation':
   result = await handleTagGeneration(req.body);
   break;
@@ -1115,176 +1119,100 @@ ${text}`
 // Paste below your other handlers in index.js. Reuses your existing
 // callClaudeForAnalysis() and WIX_API_KEY / WIX_ACCOUNT_ID / WIX_SITE_ID.
 // ============================================
-
 const CHAPTER_HOOK_TOKEN = process.env.CHAPTER_HOOK_TOKEN;
-const CHAPTER_TEXT_FIELD = process.env.CHAPTER_TEXT_FIELD || "chapterContent";
-
-const STORIES = "Stories";
-const BACKUP_CHAPTERS = "BackupChapters";
-const CHAPTERS = "Chapters";
-const STORY_CHAPTERS_FIELD = "chapters"; // multi-ref on Stories -> BackupChapters
-const SUMMARY_FIELD = "summary";         // Chapters.summary
-const STORY_FIELD = "story";             // Chapters.story (single-ref -> Stories)
-const BACKUP_FIELD = "chapters";         // Chapters.chapters (single-ref -> BackupChapters)
-
 const summaryInFlight = new Set();
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// ---------- Wix REST helpers ----------
-async function wixApi(path, body, method = 'POST') {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': WIX_API_KEY,
-    'wix-site-id': WIX_SITE_ID
-  };
-  if (WIX_ACCOUNT_ID) headers['wix-account-id'] = WIX_ACCOUNT_ID;
-
-  const res = await fetch(`https://www.wixapis.com${path}`, {
+ 
+// Insert/update helper (your queryWixCMS only reads)
+async function wixWrite(path, body, method = 'POST') {
+  const response = await fetch(`https://www.wixapis.com${path}`, {
     method,
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': WIX_API_KEY,
+      'wix-site-id': WIX_SITE_ID,
+      'wix-account-id': WIX_ACCOUNT_ID
+    },
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error(`Wix ${path} failed: ${res.status} ${await res.text()}`);
-  return res.json();
-}
-
-// Query a collection. Returns plain objects ({ _id, ...fields }).
-async function wixQuery(collectionId, filter = {}, limit = 100) {
-  const data = await wixApi('/wix-data/v2/items/query', {
-    dataCollectionId: collectionId,
-    query: { filter, paging: { limit } },
-    consistentRead: true
-  });
-  return (data.dataItems || []).map((it) => ({ ...it.data, _id: it.id }));
-}
-
-// Items on the other side of a (multi-)reference field.
-async function wixQueryReferenced(collectionId, itemId, field) {
-  const data = await wixApi('/wix-data/v2/items/query-referenced', {
-    dataCollectionId: collectionId,
-    referringItemId: itemId,
-    referringItemFieldName: field,
-    consistentRead: true,
-    paging: { limit: 1000 }
-  });
-  return (data.results || [])
-    .filter((r) => r.dataItem)
-    .map((r) => ({ ...r.dataItem.data, _id: r.dataItem.id }));
-}
-
-// ---------- Core logic ----------
-
-// The hook fires the instant the chapter exists, which can be a beat
-// BEFORE it's linked to its story, so retry for ~15s.
-async function resolveStoryId(chapterId) {
-  for (let i = 0; i < 6; i++) {
-    const stories = await wixQuery(STORIES, { [STORY_CHAPTERS_FIELD]: { $hasSome: [chapterId] } }, 1);
-    if (stories.length > 0) return stories[0]._id;
-    await sleep(3000);
+  if (!response.ok) {
+    throw new Error(`Wix write failed: ${response.status} ${await response.text()}`);
   }
-  throw new Error("Chapter was never linked to a story");
+  return response.json();
 }
-
-async function saveChapterSummary(storyId, chapterId, summary) {
-  const existing = await wixQuery(CHAPTERS, { [BACKUP_FIELD]: { $eq: chapterId } }, 1);
-
-  if (existing.length > 0) {
-    const record = existing[0];
-    // Never overwrite something the user already typed/edited.
-    if (record[SUMMARY_FIELD] && record[SUMMARY_FIELD].trim() !== "") {
-      console.log(`⏭️  Summary already exists for ${chapterId}, skipping`);
-      return;
-    }
-    const data = {};
-    Object.keys(record).forEach((k) => { if (!k.startsWith('_')) data[k] = record[k]; });
-    Object.assign(data, { [SUMMARY_FIELD]: summary, [STORY_FIELD]: storyId, [BACKUP_FIELD]: chapterId });
-
-    await wixApi(`/wix-data/v2/items/${record._id}`, {
-      dataCollectionId: CHAPTERS,
-      dataItem: { id: record._id, data }
-    }, 'PUT');
+ 
+// Called by the switch. Returns instantly; the real work runs in the background.
+async function handleChapterSummary({ token, storyId, previousChapterId }) {
+  if (!CHAPTER_HOOK_TOKEN || token !== CHAPTER_HOOK_TOKEN) {
+    throw new Error("Unauthorized");
+  }
+  if (!storyId || !previousChapterId) {
+    throw new Error("storyId and previousChapterId required");
+  }
+  if (summaryInFlight.has(previousChapterId)) return "already_processing";
+ 
+  summaryInFlight.add(previousChapterId);
+  generateChapterSummary({ storyId, previousChapterId })
+    .catch((err) => console.error("❌ Chapter summary failed:", err.message))
+    .finally(() => summaryInFlight.delete(previousChapterId));
+ 
+  return "queued";
+}
+ 
+async function generateChapterSummary({ storyId, previousChapterId }) {
+  console.log(`📝 Summarizing finished chapter ${previousChapterId}...`);
+ 
+  // Is there already a Chapters record (and a summary) for this chapter?
+  const existing = await queryWixCMS("Chapters", { chapters: { $eq: previousChapterId } }, 1);
+  const record = existing.items[0] || null;
+ 
+  if (record && record.data?.summary && record.data.summary.trim() !== "") {
+    console.log("⏭️ Summary already exists, skipping (never overwrite user edits)");
     return;
   }
-
-  await wixApi('/wix-data/v2/items', {
-    dataCollectionId: CHAPTERS,
-    dataItem: {
-      data: { [SUMMARY_FIELD]: summary, [STORY_FIELD]: storyId, [BACKUP_FIELD]: chapterId }
-    }
-  });
-}
-
-async function handleChapterSummary({ chapterId }) {
-  console.log(`📝 Generating summary for chapter ${chapterId}...`);
-
-  const storyId = await resolveStoryId(chapterId);
-
-  // All chapters in the story, oldest -> newest.
-  const chapters = (await wixQueryReferenced(STORIES, storyId, STORY_CHAPTERS_FIELD))
-    .sort((a, b) => new Date(a._createdDate) - new Date(b._createdDate));
-
-  const idx = chapters.findIndex((c) => c._id === chapterId);
-  if (idx === -1) throw new Error("Chapter not found in that story");
-
-  const current = chapters[idx];
-  const previous = idx > 0 ? chapters[idx - 1] : null;
-  const text = current[CHAPTER_TEXT_FIELD];
-
-  if (!text || text.trim().length === 0) throw new Error("Chapter has no text yet");
-
-  // Previous chapter's summary: the saved one from Chapters if there is
-  // one, otherwise the original chapterSummary on BackupChapters.
-  let previousSummary = "";
-  if (previous) {
-    const prevRecords = await wixQuery(CHAPTERS, { [BACKUP_FIELD]: { $eq: previous._id } }, 1);
-    previousSummary = (prevRecords[0] && prevRecords[0][SUMMARY_FIELD]) || previous.chapterSummary || "";
-  }
-
-  const previousContext = previousSummary
-    ? `Summary of the previous chapter ("${previous.title}") for continuity:\n${previousSummary}\n\n`
-    : "";
-
+ 
+  // Get the finished chapter's text
+  const found = await queryWixCMS("BackupChapters", { _id: { $eq: previousChapterId } }, 1);
+  if (found.items.length === 0) throw new Error("Previous chapter not found in BackupChapters");
+ 
+  const chapter = found.items[0].data;
+  const text = chapter.chapterContent || "";
+  if (text.trim().length === 0) throw new Error("Previous chapter has no content");
+ 
   const messages = [
     {
       role: "user",
-      content: `You are summarizing a chapter of a novel manuscript for the author's own reference.
-
-${previousContext}Write a summary of the chapter below in 1-3 lines of summary and 1-2 lines of foreshadowing. Cover the key events, any shift in character dynamics, and any open threads. Plain text only, no headers, no bullets, no preamble.
-
+      content: `You are summarizing a finished chapter of a novel manuscript for the author's own reference.
+ 
+Write a summary in 1-3 lines with 1-2 lines of foreshadowing. Cover the key events, any shift in character dynamics, and any open threads. Plain text only, no headers, no bullets, no preamble.
+ 
+Chapter title: ${chapter.title || "Untitled"}
+ 
 Chapter text:
 ${text}`
     }
   ];
-
+ 
   const summary = (await callClaudeForAnalysis(messages, 400)).trim();
-  await saveChapterSummary(storyId, chapterId, summary);
-
-  console.log(`✅ Summary saved for chapter ${chapterId}`);
+ 
+  // Save to the Chapters collection: summary + story ref + chapter ref
+  if (record) {
+    const data = {};
+    Object.keys(record.data).forEach((k) => { if (!k.startsWith('_')) data[k] = record.data[k]; });
+    Object.assign(data, { summary, story: storyId, chapters: previousChapterId });
+ 
+    await wixWrite(`/wix-data/v2/items/${record.id}`, {
+      dataCollectionId: "Chapters",
+      dataItem: { id: record.id, data }
+    }, 'PUT');
+  } else {
+    await wixWrite('/wix-data/v2/items', {
+      dataCollectionId: "Chapters",
+      dataItem: { data: { summary, story: storyId, chapters: previousChapterId } }
+    });
+  }
+ 
+  console.log(`✅ Summary saved for chapter ${previousChapterId}`);
 }
-
-// ---------------------------------------------------------------
-// ROUTE — add wherever your other routes are registered.
-// Assumes Express with express.json() already set up.
-// ---------------------------------------------------------------
-app.post('/devil-pov', (req, res) => {
-  if (!CHAPTER_HOOK_TOKEN || req.headers['x-hook-token'] !== CHAPTER_HOOK_TOKEN) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
-  const { chapterId } = req.body || {};
-  if (!chapterId) return res.status(400).json({ error: 'chapterId required' });
-
-  if (summaryInFlight.has(chapterId)) {
-    return res.status(202).json({ status: 'already_processing' });
-  }
-
-  summaryInFlight.add(chapterId);
-  res.status(202).json({ status: 'accepted' }); // answer immediately
-
-  handleChapterSummary({ chapterId })
-    .catch((err) => console.error('❌ Chapter summary failed:', err.message))
-    .finally(() => summaryInFlight.delete(chapterId));
-});
 // ============================================
 // TAG JANITOR
 // ============================================
