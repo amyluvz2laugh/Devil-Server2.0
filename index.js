@@ -1220,7 +1220,11 @@ const CHARACTER_FIELDS = ["title_fld", "bloodlineOriginsghostOrigin"];
 // Pulls just `fields` off one item, by _id, instead of the whole record.
 async function getTargetedFields(collection, itemId, fields) {
   const result = await queryWixCMS(collection, { _id: { $eq: itemId } }, 1);
-  if (result.items.length === 0) return null;
+ 
+  if (result.items.length === 0) {
+    console.log(`⚠️ No item found in "${collection}" for id ${itemId}`);
+    return null;
+  }
  
   const data = result.items[0].data || {};
   const trimmed = {};
@@ -1229,6 +1233,8 @@ async function getTargetedFields(collection, itemId, fields) {
       trimmed[field] = data[field];
     }
   });
+ 
+  console.log(`✅ Pulled ${Object.keys(trimmed).length}/${fields.length} fields from "${collection}" (${itemId}):`, Object.keys(trimmed));
   return trimmed;
 }
  
@@ -1236,16 +1242,23 @@ async function getTargetedFields(collection, itemId, fields) {
 // type is 'character' | 'lore' | 'wraith'; category (lore only) is one of
 // the LOREBOOK_FIELD_MAP keys above.
 async function getImpactIntel(refs) {
-  if (!refs || refs.length === 0) return [];
+  if (!refs || refs.length === 0) {
+    console.log("🗺️ Impact Matrix: no references attached to this sequence");
+    return [];
+  }
+ 
+  console.log(`🗺️ Impact Matrix: fetching intel for ${refs.length} reference(s)`);
  
   const results = await Promise.all(refs.map(async (ref) => {
     try {
       if (ref.type === 'character') {
+        console.log(`👤 Fetching character fields: ${ref.id}`);
         const fields = await getTargetedFields("Characters", ref.id, CHARACTER_FIELDS);
         return fields ? { type: 'character', ...fields } : null;
       }
  
       if (ref.type === 'wraith') {
+        console.log(`👻 Fetching wraith record fields: ${ref.id}`);
         const fields = await getTargetedFields("WraithRecords", ref.id, WRAITH_RECORD_FIELDS);
         return fields ? { type: 'wraith', ...fields } : null;
       }
@@ -1256,10 +1269,12 @@ async function getImpactIntel(refs) {
           console.warn(`⚠️ Unknown lorebook category "${ref.category}" for ref ${ref.id}`);
           return null;
         }
+        console.log(`📖 Fetching lorebook fields [${ref.category}]: ${ref.id}`);
         const fields = await getTargetedFields(config.collection, ref.id, config.fields);
         return fields ? { type: 'lore', category: ref.category, ...fields } : null;
       }
  
+      console.warn(`⚠️ Unknown impact ref type "${ref.type}" for ${ref.id}`);
       return null;
     } catch (error) {
       console.error(`❌ Error fetching impact intel for ${ref.type}/${ref.id}:`, error.message);
@@ -1267,7 +1282,9 @@ async function getImpactIntel(refs) {
     }
   }));
  
-  return results.filter(Boolean);
+  const found = results.filter(Boolean);
+  console.log(`✅ Impact Matrix intel: ${found.length}/${refs.length} reference(s) resolved`);
+  return found;
 }
  
 // ============================================
