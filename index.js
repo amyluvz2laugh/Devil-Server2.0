@@ -1202,13 +1202,15 @@ ${text}`
   }
 }
 
+const LOREBOOK_COLLECTION = "Lorebook";
+ 
 const LOREBOOK_FIELD_MAP = {
-  "Organization":    { collection: "Organization",  fields: ["title", "orgSummary"] },
-  "Bloodlines":      { collection: "Bloodlines",    fields: ["bloodlinestitle", "bloodlineOrigin"] },
-  "Laws & Rules":    { collection: "LawsRules",     fields: ["lawtitle", "lawsummary", "lawconsequence"] },
-  "Magic System":    { collection: "MagicSystem",   fields: ["magicTitle", "magicRules"] },
-  "Secrets":         { collection: "Secrets",       fields: ["secretsTitle", "secretsSummary", "reveal"] },
-  "Myths & History": { collection: "MythsHistory",  fields: ["mythTitle", "mythSummary"] }
+  "Organization":    ["title", "orgSummary"],
+  "Bloodlines":      ["bloodlinestitle", "bloodlineOrigin"],
+  "Laws & Rules":    ["lawtitle", "lawsummary", "lawconsequence"],
+  "Magic System":    ["magicTitle", "magicRules"],
+  "Secrets":         ["secretsTitle", "secretsSummary", "reveal"],
+  "Myths & History": ["mythTitle", "mythSummary"]
 };
  
 const WRAITH_RECORD_FIELDS = ["title", "about"];
@@ -1264,13 +1266,13 @@ async function getImpactIntel(refs) {
       }
  
       if (ref.type === 'lore') {
-        const config = LOREBOOK_FIELD_MAP[ref.category];
-        if (!config) {
+        const fieldList = LOREBOOK_FIELD_MAP[ref.category];
+        if (!fieldList) {
           console.warn(`⚠️ Unknown lorebook category "${ref.category}" for ref ${ref.id}`);
           return null;
         }
         console.log(`📖 Fetching lorebook fields [${ref.category}]: ${ref.id}`);
-        const fields = await getTargetedFields(config.collection, ref.id, config.fields);
+        const fields = await getTargetedFields(LOREBOOK_COLLECTION, ref.id, fieldList);
         return fields ? { type: 'lore', category: ref.category, ...fields } : null;
       }
  
