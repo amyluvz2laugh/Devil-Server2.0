@@ -459,8 +459,11 @@ app.get('/download-training-data', (req, res) => {
   case 'chapter_summary':
      result = await handleChapterSummary(req.body);
      break;  
-     
 
+  case 'trajectory':
+  result = await handleTrajectory(req.body);
+  break;
+     
   case 'tag_generation':
   result = await handleTagGeneration(req.body);
   break;
@@ -1196,6 +1199,143 @@ ${text}`
     return JSON.parse(cleaned);
   } catch (e) {
     throw new Error("Failed to parse structural analysis");
+  }
+}
+
+const LOREBOOK_FIELD_MAP = {
+  "Organization":    { collection: "Organization",  fields: ["title", "orgSummary"] },
+  "Bloodlines":      { collection: "Bloodlines",    fields: ["bloodlinestitle", "bloodlineOrigin"] },
+  "Laws & Rules":    { collection: "LawsRules",     fields: ["lawtitle", "lawsummary", "lawconsequence"] },
+  "Magic System":    { collection: "MagicSystem",   fields: ["magicTitle", "magicRules"] },
+  "Secrets":         { collection: "Secrets",       fields: ["secretsTitle", "secretsSummary", "reveal"] },
+  "Myths & History": { collection: "MythsHistory",  fields: ["mythTitle", "mythSummary"] }
+};
+ 
+const WRAITH_RECORD_FIELDS = ["title", "about"];
+ 
+// title_fld is the character's name; bloodlineOriginsghostOrigin is their soul
+// hunger (field name is a legacy mess, nothing to do with "title").
+const CHARACTER_FIELDS = ["title_fld", "bloodlineOriginsghostOrigin"];
+ 
+// Pulls just `fields` off one item, by _id, instead of the whole record.
+async function getTargetedFields(collection, itemId, fields) {
+  const result = await queryWixCMS(collection, { _id: { $eq: itemId } }, 1);
+  if (result.items.length === 0) return null;
+ 
+  const data = result.items[0].data || {};
+  const trimmed = {};
+  fields.forEach((field) => {
+    if (data[field] !== undefined && data[field] !== null && data[field] !== "") {
+      trimmed[field] = data[field];
+    }
+  });
+  return trimmed;
+}
+ 
+// refs: array of { id, type, category } from the cockpit's Impact Matrix —
+// type is 'character' | 'lore' | 'wraith'; category (lore only) is one of
+// the LOREBOOK_FIELD_MAP keys above.
+async function getImpactIntel(refs) {
+  if (!refs || refs.length === 0) return [];
+ 
+  const results = await Promise.all(refs.map(async (ref) => {
+    try {
+      if (ref.type === 'character') {
+        const fields = await getTargetedFields("Characters", ref.id, CHARACTER_FIELDS);
+        return fields ? { type: 'character', ...fields } : null;
+      }
+ 
+      if (ref.type === 'wraith') {
+        const fields = await getTargetedFields("WraithRecords", ref.id, WRAITH_RECORD_FIELDS);
+        return fields ? { type: 'wraith', ...fields } : null;
+      }
+ 
+      if (ref.type === 'lore') {
+        const config = LOREBOOK_FIELD_MAP[ref.category];
+        if (!config) {
+          console.warn(`⚠️ Unknown lorebook category "${ref.category}" for ref ${ref.id}`);
+          return null;
+        }
+        const fields = await getTargetedFields(config.collection, ref.id, config.fields);
+        return fields ? { type: 'lore', category: ref.category, ...fields } : null;
+      }
+ 
+      return null;
+    } catch (error) {
+      console.error(`❌ Error fetching impact intel for ${ref.type}/${ref.id}:`, error.message);
+      return null;
+    }
+  }));
+ 
+  return results.filter(Boolean);
+}
+ 
+// ============================================
+// TRAJECTORY ENGINE — three modes, one function
+// ============================================
+const TRAJECTORY_FIELDS = {
+  chapter: ["escalation", "fallout", "pacing", "tensionCurve", "characterDestabilization", "loreActivation"],
+  ripple: ["factionReactions", "loreThreadActivation", "wraithRecordUpdates", "corruptionSpread", "futureDanger", "continuityShifts"],
+  reveal: ["secretsSurfacing", "hiddenMotivesRevealed", "bloodlineImplications", "soulHungerExposure", "relationshipFractures", "plotTwists", "characterRealizations"]
+};
+ 
+const TRAJECTORY_PROMPTS = {
+  chapter: `You are Devil, calculating the trajectory of a chapter from four armed narrative catalysts:
+- Primary Catalyst -> the spark
+- Secondary Pressure -> the squeeze
+- Background Corruption -> the rot
+- Delayed Detonation -> the bomb
+ 
+Read the full payload and calculate the chapter's escalation, fallout, pacing, tension curve, character destabilization, and lore activation. This is the chapter trajectory engine — think in terms of what actually happens on the page as these four forces collide.`,
+ 
+  ripple: `You are Devil, calculating story gravity — how this moment ripples outward across the entire world, not just the chapter it happens in.
+ 
+Read the full payload and calculate faction reactions, lore thread activation, wraith record updates, corruption spread, future danger, and continuity shifts. This is world-level consequence, not scene-level — think in terms of what changes beyond the room this moment happens in.`,
+ 
+  reveal: `You are Devil, calculating visibility — what becomes known, to whom, and how it changes the story.
+ 
+Read the full payload and calculate secrets surfacing, hidden motives revealed, bloodline implications, soul hunger exposure, relationship fractures, plot twists, and character realizations. This is a truth-exposure calculation — think in terms of who learns what, and what it costs them to know it.`
+};
+ 
+// body: { mode: 'chapter'|'ripple'|'reveal', armedCatalysts: {...}, impactRefs: [{id,type,category}] }
+async function handleTrajectory({ mode, armedCatalysts, impactRefs }) {
+  console.log(`🧮 Running trajectory engine: ${mode}`);
+ 
+  if (!TRAJECTORY_FIELDS[mode]) {
+    throw new Error(`Unknown trajectory mode: ${mode}`);
+  }
+ 
+  if (!armedCatalysts || Object.values(armedCatalysts).every(c => !c)) {
+    throw new Error("No armed catalysts provided");
+  }
+ 
+  const impactIntel = await getImpactIntel(impactRefs);
+  const fieldList = TRAJECTORY_FIELDS[mode].join(', ');
+ 
+  const messages = [
+    {
+      role: "system",
+      content: `${TRAJECTORY_PROMPTS[mode]}
+ 
+Return ONLY valid JSON — a single object with exactly these keys: ${fieldList}.
+Each value should be a short string, or an array of short strings if the field
+naturally breaks into multiple points. No preamble, no markdown code blocks,
+no extra keys.`
+    },
+    {
+      role: "user",
+      content: `ARMED CATALYSTS:\n${JSON.stringify(armedCatalysts, null, 2)}\n\nIMPACT MATRIX INTEL:\n${JSON.stringify(impactIntel, null, 2)}`
+    }
+  ];
+ 
+  const response = await callClaudeForAnalysis(messages, 2000);
+ 
+  try {
+    const cleaned = response.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("Failed to parse trajectory response:", response);
+    throw new Error("Failed to parse trajectory analysis");
   }
 }
 
