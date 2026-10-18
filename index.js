@@ -877,7 +877,7 @@ async function callClaudeForAnalysis(messages, maxTokens = 3000) {
         'X-Title': 'Devil Muse - Manuscript Analysis'
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4",
+        model: "anthropic/claude-sonnet-4.5",
         messages: messages,
         temperature: 0.3, // Lower temp for analytical precision
         max_tokens: maxTokens
