@@ -1379,10 +1379,19 @@ async function handleChapterSummary({ chapterId }) {
   const messages = [
     {
       role: "user",
-      content: `You are summarizing a chapter of a novel manuscript for the author's own reference.
- 
-Write a summary in no more than 5 lines. 1-3 lines covering the chapter and 1-2 lines of foreshadowing. Cover the key events, any shift in character dynamics, and any open threads. Plain text only, no headers, no bullets, no preamble.
- 
+      content: `You are creating a compact intel brief on one chapter of a novel manuscript. This brief will be read by an AI writing companion who needs the essential story intel without re-reading the chapter, so be dense and specific. No fluff, no filler.
+
+Return exactly these labeled sections:
+
+SUMMARY: 1-3 lines. Key events and any shift in character dynamics.
+FORESHADOWING: 1-2 lines. Planted hints, ominous details, or setups likely to pay off later. Write "None" if there are none.
+NEW CHARACTERS: Comma-separated names with a 3-5 word descriptor each (e.g. "Marco (Vitale's rival, newly arrived)"). Include characters who are only mentioned, not just present on the page. Write "None" if there are none.
+OPEN THREADS: 1-2 lines. Unresolved questions or conflicts left hanging. Write "None" if there are none.
+
+Rules:
+- Only include what is actually in the chapter text. Do not guess or invent.
+- Do not exceed the line limits above.
+- Do not add any intro, outro, or extra commentary.
 Chapter title: ${chapter.title || "Untitled"}
  
 Chapter text:
