@@ -706,7 +706,7 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   console.log("🔍 Fetching chat context from Wix CMS...");
   const contextStart = Date.now();
   
-  const [characterContext, chatHistoryContext, ChapterSummaries, catalystIntel] = await Promise.all([
+  const [characterContext, chatHistoryContext, ChapterSummaries, relatedChapters, catalystIntel] = await Promise.all([
     getCharacterContext(characterTags),
     getChatHistory(characterTags),
     getChapterSummaries(storyTags),
