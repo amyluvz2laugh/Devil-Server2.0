@@ -263,6 +263,46 @@ async function getRelatedChapters(storyTags) {
 }
 
 // ============================================
+// GET CHAPTER SUMMARIES FROM WIX (Chapters collection)
+// ============================================
+async function getChapterSummaries(storyTags) {
+  try {
+    if (!storyTags || storyTags.length === 0) {
+      return [];
+    }
+
+    const rawTag = String(Array.isArray(storyTags) ? storyTags[0] : storyTags).trim();
+    if (!rawTag) return [];
+
+    const bare = rawTag.replace(/^@/, '');
+    console.log("📖 Fetching chapter summaries with tag:", rawTag);
+
+    const result = await queryWixCMS("Chapters", {
+      storyTag: { $in: [rawTag, "@" + bare, bare] }
+    }, 20);
+
+    if (result.items.length > 0) {
+      console.log(`✅ Found ${result.items.length} chapter summaries`);
+
+      return result.items
+        .sort((a, b) =>
+          new Date(a.data?._createdDate || 0) - new Date(b.data?._createdDate || 0)
+        )
+        .map(item => ({
+          title: item.data?.chapters || "Untitled",
+          content: (item.data?.summary || "").substring(0, 800)
+        }))
+        .filter(c => c.content);
+    }
+
+    return [];
+  } catch (err) {
+    console.error("⚠️ getChapterSummaries failed:", err.message);
+    return []; // never let this 500 the chat
+  }
+}
+
+// ============================================
 // GET CATALYST INTEL FROM WIX
 // ============================================
 async function getCatalystIntel(catalystTags) {
@@ -666,10 +706,10 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   console.log("🔍 Fetching chat context from Wix CMS...");
   const contextStart = Date.now();
   
-  const [characterContext, chatHistoryContext, relatedChapters, catalystIntel] = await Promise.all([
+  const [characterContext, chatHistoryContext, ChapterSummaries, catalystIntel] = await Promise.all([
     getCharacterContext(characterTags),
     getChatHistory(characterTags),
-    getRelatedChapters(storyTags),
+    getChapterSummaries(storyTags),
     getCatalystIntel(characterTags) // Characters can also have catalyst tags
   ]);
   
@@ -753,7 +793,7 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   
   // Add related chapters (story context)
   if (relatedChapters.length > 0) {
-    systemPrompt += `\n\nRELATED CHAPTERS YOU APPEAR IN:\n`;
+    systemPrompt += `\n\nSTORY SO FAR (CHAPTER SUMMARIES):\n`;
     relatedChapters.forEach(ch => {
       systemPrompt += `[${ch.title}]\n${ch.content}\n\n`;
     });
