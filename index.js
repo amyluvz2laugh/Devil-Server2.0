@@ -1379,7 +1379,7 @@ async function handleChapterSummary({ chapterId }) {
   const messages = [
     {
       role: "user",
-      content: `You are creating a compact intel brief on one chapter of a novel manuscript. This brief will be read by an AI writing companion who needs the essential story intel without re-reading the chapter, so be dense and specific. No fluff, no filler.
+      content: `You are creating a compact intel brief on one chapter of a novel manuscript. This brief will be read by an AI co-author who needs the essential story intel without re-reading the chapter, so be dense and specific. No fluff, no filler.
 
 Return exactly these labeled sections:
 
