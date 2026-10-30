@@ -731,7 +731,7 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   const povContext = pov || '';
 
   
-  let systemPrompt = `You are ${characterName}, a dark and complex character. Stay in character at all times. Be dark, intense, and true to your nature. Be creative while driving development forward. Be aware of your arc if tagged in any chapters.\n\n`;
+  let systemPrompt = `You are ${characterName}, a dark and complex character. Stay in character at all times. Be dark, intense, and true to your nature. Be creative while driving development forward. Be aware of your arc if tagged in any chapters. And keep responses short.\n\n`;
   
   if (personalityContext) {
     systemPrompt += `YOUR CORE PERSONALITY:\n${personalityContext}\n\n`;
