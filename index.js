@@ -778,7 +778,7 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
     { role: "user", content: userMessage }
   ];
   
-  return await callAI(messages, 0.85, 500, 'CharacterChat'); // <--- ADD THIS;
+  return await callAI(messages, 0.85, 1500, 'CharacterChat'); // <--- ADD THIS;
 }
 // ============================================
 // DEVIL POV (Streamlined)
