@@ -233,35 +233,29 @@ async function getChatHistory(characterTags) {
   return [];
 }
 
+
 // ============================================
-// GET RELATED CHAPTERS FROM WIX
+// GET RELATED CHAPTERS (SUMMARIES) FROM WIX
 // ============================================
-async function getRelatedChapters(storyTags) {
-  if (!storyTags || storyTags.length === 0) {
-    return [];
-  }
-  
-  const storyTag = Array.isArray(storyTags) ? storyTags[0] : storyTags;
-  console.log("📚 Fetching chapters with tag:", storyTag);
-  
-    const result = await queryWixCMS("Chapters", {
-    storyTag: { $eq: storyTag }
-  }, 10);
+async function getRelatedChapters(storyId) {
+  if (!storyId) return [];
 
-  if (result.items.length > 0) {
-    console.log(`✅ Found ${result.items.length} related chapters`);
+  const id = Array.isArray(storyId) ? storyId[0] : storyId;
+  console.log("📚 Fetching chapters for story:", id);
 
-    const chapters = result.items.map((item, i) => ({
-      title: `Chapter ${i + 1}`,
-      content: (item.data?.summary || "").substring(0, 800)
-    }));
+  const result = await queryWixCMS("Chapters", {
+    storyTag: { $eq: id }
+  }, 20);
 
-    return chapters;
-  }
-  
-  return [];
+  if (!result?.items?.length) return [];
+
+  console.log(`✅ Found ${result.items.length} related chapters`);
+
+  return result.items.map((item, i) => ({
+    title: `Chapter ${i + 1}`,
+    content: (item.data?.summary || "").substring(0, 800)
+  }));
 }
-
 
 // ============================================
 // GET CATALYST INTEL FROM WIX
@@ -523,37 +517,43 @@ async function handleUnhinge({ chapterContent }) {
 // ============================================
 // UNLEASH
 // ============================================
-async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags }) {
+async function handleUnleash({ chapterContent, characterTags, catalystTags, storyId }) {
   console.log("🔥 Unleashing continuation...");
-  
+
   if (!chapterContent || chapterContent.trim().length === 0) {
     throw new Error("No content to continue from");
   }
-  
-  // Get context from Wix
-  const [characterContext, catalystIntel] = await Promise.all([
+
+  const [characterContext, catalystIntel, relatedChapters] = await Promise.all([
     getCharacterContext(characterTags),
-    getCatalystIntel(catalystTags)
+    getCatalystIntel(catalystTags),
+    getRelatedChapters(storyId)
   ]);
-  
-  let systemPrompt = "You are a dark, continuation engine. Continue the chapter from where it left off. Match the tone, style, and darkness of the existing text. Write 1-4 lines per paragraphs that flow naturally from the previous content. Make it sharp and tense.  If User provides tags treat them as hard constraints and obey strictly. Do NOT add any preamble or explanation - start writing immediately where the story left off.";
-  
+
+  const chapterSummaries = relatedChapters
+    .filter(c => c.content)
+    .map(c => `${c.title}: ${c.content}`)
+    .join("\n\n");
+
+  let systemPrompt = "You are a dark, continuation engine. Continue the chapter from where it left off. Match the tone, style, and darkness of the existing text. Write 1-4 lines per paragraphs that flow naturally from the previous content. Make it sharp and tense. If User provides tags treat them as hard constraints and obey strictly. Do NOT add any preamble or explanation - start writing immediately where the story left off.";
+
+  if (chapterSummaries) {
+    systemPrompt += `\n\nSTORY SO FAR (CHAPTER SUMMARIES):\n${chapterSummaries}`;
+  }
   if (characterContext) {
     systemPrompt += `\n\nCHARACTER CONTEXT:\n${characterContext}`;
   }
-  
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
   }
-  
+
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: `Continue this story. Pick up EXACTLY where it ends and keep going:\n\n${chapterContent}` }
   ];
-  
-  return await callAI(messages, 0.85, 2000, 'unleash'); // <--- ADD THIS
-}
 
+  return await callAI(messages, 0.85, 2000, 'unleash');
+}
 // ============================================
 // NO MERCY
 // ============================================
