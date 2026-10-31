@@ -517,7 +517,7 @@ async function handleUnhinge({ chapterContent }) {
 // ============================================
 // UNLEASH
 // ============================================
-async function handleUnleash({ chapterContent, characterTags, catalystTags, storyId }) {
+async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags }) {
   console.log("🔥 Unleashing continuation...");
 
   if (!chapterContent || chapterContent.trim().length === 0) {
@@ -527,7 +527,7 @@ async function handleUnleash({ chapterContent, characterTags, catalystTags, stor
   const [characterContext, catalystIntel, relatedChapters] = await Promise.all([
     getCharacterContext(characterTags),
     getCatalystIntel(catalystTags),
-    getRelatedChapters(storyId)
+    getRelatedChapters(storyTags)   // same call Devil makes
   ]);
 
   const chapterSummaries = relatedChapters
