@@ -493,27 +493,34 @@ app.get('/download-training-data', (req, res) => {
 // ============================================
 // UNHINGE
 // ============================================
-async function handleUnhinge({ chapterContent }) {
+// ============================================
+// UNHINGE
+// ============================================
+async function handleUnhinge({ chapterContent, characterTags }) {
   console.log("😈 Unhinging chapter...");
-  
+
   if (!chapterContent || chapterContent.trim().length === 0) {
     throw new Error("No content to unhinge");
   }
-  
+
+  const characterContext = await getCharacterContext(characterTags);
+
+  let systemPrompt = "You are a dark, twisted muse. Your job is to take existing writing and make it DARKER, more UNHINGED, more VISCERAL. Push boundaries. Increase tension. Add psychological horror elements. Make it raw and disturbing while maintaining the core narrative. Do not add explanations or meta-commentary - ONLY return the darkened version of the text.";
+
+  if (characterContext) {
+    systemPrompt += `\n\nCHARACTER CONTEXT:\n${characterContext}\n\nYou are this character. Use their voice, thought patterns, and instincts. The darkness should come from who they are and how they think, not generic edginess. Use the context to shape how scenes are darkened, but do not invent events that aren't in the original chapter.`;
+  }
+
   const messages = [
-    {
-      role: "system",
-      content: "You are a dark, twisted muse. Your job is to take existing writing and make it DARKER, more UNHINGED, more VISCERAL. Push boundaries. Increase tension. Add psychological horror elements. Make it raw and disturbing while maintaining the core narrative. Do not add explanations or meta-commentary - ONLY return the darkened version of the text."
-    },
+    { role: "system", content: systemPrompt },
     {
       role: "user",
       content: `Transform this chapter into something darker and more unhinged. Maintain the plot and characters but amplify the darkness, tension, and psychological elements:\n\n${chapterContent}`
     }
   ];
-  
-  return await callAI(messages, 0.9, 3000, 'unhinge'); // <--- ADD THIS
-}
 
+  return await callAI(messages, 0.9, 3000, 'unhinge');
+}
 // ============================================
 // UNLEASH
 // ============================================
