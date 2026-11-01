@@ -128,7 +128,7 @@ function logTrainingData(buttonType, messages, output, model) {
   } catch (err) {
     console.error('⚠️ Training log failed (non-critical):', err);
   }
-}
+} 
 // ============================================
 // QUERY WIX CMS
 // ============================================
