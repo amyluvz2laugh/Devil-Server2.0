@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 
 // CORS first
@@ -29,11 +31,13 @@ const WIX_API_KEY = process.env.WIX_API_KEY;
 const WIX_ACCOUNT_ID = process.env.WIX_ACCOUNT_ID;
 const WIX_SITE_ID = process.env.WIX_SITE_ID;
 
-// Model configuration
+// ============================================
+// MODEL CONFIGURATION
+// ============================================
 const MUSE_MODEL      = "meta/muse-spark-1.3";
-const GROK_MODEL      = "meta-llama/llama-3.1-70b-instruct";       // confirm the exact slug on OpenRouter
+const GROK_MODEL      = "meta-llama/llama-3.1-70b-instruct";   // confirm the exact slug on OpenRouter
 const DEEPSEEK_MODEL  = "deepseek/deepseek-v3.2";
-const COMMAND_R_MODEL = "cohere/command-r-08-2024";     // confirm the exact slug on OpenRouter
+const COMMAND_R_MODEL = "cohere/command-r-08-2024";            // confirm the exact slug on OpenRouter
 
 const CHASTE_CHAIN = [MUSE_MODEL, GROK_MODEL];
 const SPICE_CHAIN  = [DEEPSEEK_MODEL, COMMAND_R_MODEL];
@@ -51,22 +55,20 @@ function getTemptation(level) {
   return TEMPTATION[Number.isInteger(n) && n >= 0 && n <= 4 ? n : 0];
 }
 
-
 // ============================================
-// AI CALL WITH FALLBACK + TRAINING DATA LOGGING
+// AI CALL WITH FALLBACK CHAIN + TRAINING DATA LOGGING
 // ============================================
-async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType = null) {
-  const models = [PRIMARY_MODEL, BACKUP_MODEL, TERTIARY_MODEL];
+async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType = null, chain = CHASTE_CHAIN) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  
+
   if (!apiKey) {
     throw new Error("No API key configured");
   }
-  
-  for (const model of models) {
+
+  for (const model of chain) {
     try {
-      console.log(`🤖 [${label}] Trying model: ${model}`);
-      
+      console.log(`🤖 [${buttonType || 'general'}] Trying model: ${model}`);
+
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -82,31 +84,29 @@ async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType
           max_tokens: maxTokens
         })
       });
-    
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`❌ ${model} failed:`, errorText);
         continue;
       }
-      
+
       const data = await response.json();
       const output = data.choices[0].message.content;
       console.log(`✅ Success with ${model}`);
-      
-      // 🔥 LOG TO TRAINING DATA FILE (only for writing functions)
+
       if (buttonType && shouldLogForTraining(buttonType)) {
         logTrainingData(buttonType, messages, output, model);
       }
-      
+
       return output;
-      
+
     } catch (error) {
       console.error(`❌ ${model} error:`, error.message);
       continue;
     }
   }
-  
+
   throw new Error("All models failed");
 }
 
@@ -114,13 +114,7 @@ async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType
 // FILTER WHICH ACTIONS TO LOG
 // ============================================
 function shouldLogForTraining(buttonType) {
-  const trainingActions = [
-    'unhinge',
-    'unleash', 
-    'invoke',
-    'intensify',
-    'devilPOV'
-  ];
+  const trainingActions = ['unhinge', 'unleash', 'invoke', 'intensify', 'noMercy'];
   return trainingActions.includes(buttonType);
 }
 
@@ -128,9 +122,6 @@ function shouldLogForTraining(buttonType) {
 // TRAINING DATA LOGGER
 // ============================================
 function logTrainingData(buttonType, messages, output, model) {
-  const fs = require('fs');
-  const path = require('path');
-  
   const trainingExample = {
     button: buttonType,
     messages: messages,
@@ -138,7 +129,7 @@ function logTrainingData(buttonType, messages, output, model) {
     model: model,
     timestamp: new Date().toISOString()
   };
-  
+
   try {
     const logPath = path.join(__dirname, 'training_data.jsonl');
     fs.appendFileSync(logPath, JSON.stringify(trainingExample) + '\n');
@@ -146,14 +137,15 @@ function logTrainingData(buttonType, messages, output, model) {
   } catch (err) {
     console.error('⚠️ Training log failed (non-critical):', err);
   }
-} 
+}
+
 // ============================================
 // QUERY WIX CMS
 // ============================================
 async function queryWixCMS(collection, filter = {}, limit = 10) {
   try {
     console.log(`🔍 Querying Wix collection: ${collection}`);
-    
+
     const response = await fetch(`https://www.wixapis.com/wix-data/v2/items/query`, {
       method: 'POST',
       headers: {
@@ -161,30 +153,28 @@ async function queryWixCMS(collection, filter = {}, limit = 10) {
         'Authorization': WIX_API_KEY,
         'wix-site-id': WIX_SITE_ID,
         'wix-account-id': WIX_ACCOUNT_ID
-        
       },
       body: JSON.stringify({
-  dataCollectionId: collection,
-  query: {
-    filter: filter,
-    sort: [],
-    paging: { limit: limit }
-  },
-  suppressAuth: true
-})
-        
+        dataCollectionId: collection,
+        query: {
+          filter: filter,
+          sort: [],
+          paging: { limit: limit }
+        },
+        suppressAuth: true
+      })
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ Wix API error for ${collection}:`, errorText);
       return { items: [] };
     }
-    
+
     const data = await response.json();
     console.log(`✅ Found ${data.dataItems?.length || 0} items in ${collection}`);
     return { items: data.dataItems || [] };
-    
+
   } catch (error) {
     console.error(`❌ Error querying ${collection}:`, error);
     return { items: [] };
@@ -198,20 +188,20 @@ async function getCharacterContext(characterTags) {
   if (!characterTags || characterTags.length === 0) {
     return "";
   }
-  
+
   const charTag = Array.isArray(characterTags) ? characterTags[0] : characterTags;
   console.log("👤 Fetching character:", charTag);
 
   const result = await queryWixCMS("Characters", {
     charactertags: { $eq: charTag }
   }, 1);
-  
+
   if (result.items.length > 0) {
     const personality = result.items[0].data?.chatbot || "";
     console.log("✅ Character personality:", personality ? "YES" : "NO");
     return personality;
   }
-  
+
   return "";
 }
 
@@ -223,18 +213,18 @@ async function getChatHistory(characterTags) {
     console.log("❌ No characterTags provided");
     return [];
   }
-  
+
   const charTag = Array.isArray(characterTags) ? characterTags[0] : characterTags;
   console.log("💬 Fetching chat history for character tag:", charTag);
-  
+
   const result = await queryWixCMS("ChatWithCharacters", {
     charactertags: { $eq: charTag }
   }, 5);
-  
+
   console.log(`📊 Found ${result.items.length} chat sessions for character tag: ${charTag}`);
-  
+
   if (result.items.length > 0) {
-    const chatHistory = result.items.map(item => {
+    return result.items.map(item => {
       try {
         const chatBox = item.data?.chatBox;
         const messages = typeof chatBox === 'string' ? JSON.parse(chatBox) : chatBox;
@@ -243,14 +233,11 @@ async function getChatHistory(characterTags) {
         return { messages: [] };
       }
     });
-    
-    return chatHistory;
   }
-  
+
   console.log("⚠️ No chat history found for this character");
   return [];
 }
-
 
 // ============================================
 // GET RELATED CHAPTERS (SUMMARIES) FROM WIX
@@ -282,25 +269,23 @@ async function getCatalystIntel(catalystTags) {
   if (!catalystTags || catalystTags.length === 0) {
     return "";
   }
-  
+
   const catalystTag = Array.isArray(catalystTags) ? catalystTags[0] : catalystTags;
   console.log("⚡ Fetching catalyst intel:", catalystTag);
-  
+
   const result = await queryWixCMS("Catalyst", {
     title: { $contains: catalystTag }
   }, 1);
-  
+
   if (result.items.length > 0) {
-    const catalystData = result.items[0].data;
-    const catalystInfo = JSON.stringify(catalystData, null, 2);
+    const catalystInfo = JSON.stringify(result.items[0].data, null, 2);
     console.log("✅ Catalyst intel:", catalystInfo ? "YES" : "NO");
     return catalystInfo;
   }
-  
+
   console.log("⚠️ No catalyst intel found for this tag");
   return "";
 }
-
 
 // ============================================
 // CLEAN WIX ITEM DATA (strips system fields + empties)
@@ -384,137 +369,75 @@ async function getLorebookTags(loreTags) {
 }
 
 // ============================================
+// DOWNLOAD TRAINING DATA (top level)
+// ============================================
+app.get('/download-training-data', (req, res) => {
+  const filePath = path.join(__dirname, 'training_data.jsonl');
+
+  if (fs.existsSync(filePath)) {
+    res.download(filePath, 'training_data.jsonl');
+  } else {
+    res.status(404).json({
+      error: 'No training data yet',
+      message: 'Use the writing functions (unhinge, unleash, invoke, intensify, noMercy) to generate training examples first'
+    });
+  }
+});
+
+// ============================================
 // UNIFIED /devil-pov ENDPOINT - ALL ACTIONS
 // ============================================
 app.post('/devil-pov', async (req, res) => {
   try {
     const startTime = Date.now();
-    const { action = 'devilPOV' } = req.body;
-    
-    console.log(`🎯 Action: ${action.toUpperCase()}`);
-    // ============================================
-// DOWNLOAD TRAINING DATA ENDPOINT
-// ============================================
-app.get('/download-training-data', (req, res) => {
-  const fs = require('fs');
-  const path = require('path');
-  const filePath = path.join(__dirname, 'training_data.jsonl');
-  
-  if (fs.existsSync(filePath)) {
-    res.download(filePath, 'training_data.jsonl');
-  } else {
-    res.status(404).json({ 
-      error: 'No training data yet',
-      message: 'Use the writing functions (unhinge, unleash, invoke, intensify, devilPOV) to generate training examples first'
-    });
-  }
-});
-    
-    // ============================================
-    // ROUTE TO APPROPRIATE HANDLER
-    // ============================================
+    const { action } = req.body;
+
+    console.log(`🎯 Action: ${String(action).toUpperCase()}`);
+
     let result;
-    
-    switch(action) {
-      case 'unhinge':
-        result = await handleUnhinge(req.body);
-        break;
-      
-      case 'unleash':
-        result = await handleUnleash(req.body);
-        break;
-      
-      case 'noMercy':
-        result = await handleNoMercy(req.body);
-        break;
-      
-      case 'invoke':
-        result = await handleInvoke(req.body);
-        break;
-      
-      case 'intensify':
-        result = await handleIntensify(req.body);
-        break;
-      
-      case 'characterChat':
-        result = await handleCharacterChat(req.body);
-        break;
-      
-      case 'devilPOV':
+
+    switch (action) {
+      case 'unhinge':            result = await handleUnhinge(req.body); break;
+      case 'unleash':            result = await handleUnleash(req.body); break;
+      case 'noMercy':            result = await handleNoMercy(req.body); break;
+      case 'invoke':             result = await handleInvoke(req.body); break;
+      case 'intensify':          result = await handleIntensify(req.body); break;
+      case 'characterChat':      result = await handleCharacterChat(req.body); break;
+      case 'overuse_scanner':    result = await handleOveruseScanner(req.body); break;
+      case 'pacing_analyzer':    result = await handlePacingAnalyzer(req.body); break;
+      case 'sentence_mechanics': result = await handleSentenceMechanics(req.body); break;
+      case 'dialogue_critic':    result = await handleDialogueCritic(req.body); break;
+      case 'ai_critic':          result = await handleAICritic(req.body); break;
+      case 'structural_check':   result = await handleStructuralCheck(req.body); break;
+      case 'chapter_summary':    result = await handleChapterSummary(req.body); break;
+      case 'trajectory':         result = await handleTrajectory(req.body); break;
+      case 'tag_generation':     result = await handleTagGeneration(req.body); break;
       default:
-        result = await handleDevilPOV(req.body);
-        break;
-
-        case 'overuse_scanner':
-    result = await handleOveruseScanner(req.body);
-    break;
-  
-  case 'pacing_analyzer':
-    result = await handlePacingAnalyzer(req.body);
-    break;
-  
-  case 'sentence_mechanics':
-    result = await handleSentenceMechanics(req.body);
-    break;
-  
-  case 'dialogue_critic':
-    result = await handleDialogueCritic(req.body);
-    break;
-  
-  case 'ai_critic':
-    result = await handleAICritic(req.body);
-    break;
-  
-  case 'structural_check':
-    result = await handleStructuralCheck(req.body);
-    break;
-
-  case 'chapter_summary':
-     result = await handleChapterSummary(req.body);
-     break;  
-
-  case 'trajectory':
-  result = await handleTrajectory(req.body);
-  break;
-     
-  case 'tag_generation':
-  result = await handleTagGeneration(req.body);
-  break;
-  
-  // ... rest of existing cases ...
+        throw new Error(`Unknown action: ${action}`);
     }
-    
-    
+
     console.log(`✅ ${action} completed in ${Date.now() - startTime}ms`);
-    
+
     res.json({
       status: 'success',
       result: result,
-      charsGenerated: result.length,
+      charsGenerated: result?.length,
       processingTime: Date.now() - startTime
     });
-    
+
   } catch (err) {
-    console.error(`❌ Error in ${req.body.action}:`, err);
-    res.status(500).json({ 
-      error: `${req.body.action || 'Action'} failed`,
-      details: err.message 
+    console.error(`❌ Error in ${req.body?.action}:`, err);
+    res.status(500).json({
+      error: `${req.body?.action || 'Action'} failed`,
+      details: err.message
     });
-    res.json({
-  status: 'success',
-  markers: result, // This is now the JSON array
-  processingTime: Date.now() - startTime
-});
   }
 });
 
 // ============================================
 // UNHINGE
 // ============================================
-// ============================================
-// UNHINGE
-// ============================================
-async function handleUnhinge({ chapterContent, characterTags }) {
+async function handleUnhinge({ chapterContent, characterTags, temptation }) {
   console.log("😈 Unhinging chapter...");
 
   if (!chapterContent || chapterContent.trim().length === 0) {
@@ -529,6 +452,10 @@ async function handleUnhinge({ chapterContent, characterTags }) {
     systemPrompt += `\n\nCHARACTER CONTEXT:\n${characterContext}\n\nYou are this character. Use their voice, thought patterns, and instincts. The darkness should come from who they are and how they think, not generic edginess. Use the context to shape how scenes are darkened, but do not invent events that aren't in the original chapter.`;
   }
 
+  const t = getTemptation(temptation);
+  systemPrompt += `\n\n${t.note}`;
+  console.log(`🌡️ Temptation level: ${t.name}`);
+
   const messages = [
     { role: "system", content: systemPrompt },
     {
@@ -537,22 +464,30 @@ async function handleUnhinge({ chapterContent, characterTags }) {
     }
   ];
 
-  return await callAI(messages, 0.9, 3000, 'unhinge');
+  return await callAI(messages, 0.9, 3000, 'unhinge', t.chain);
 }
+
 // ============================================
 // UNLEASH
 // ============================================
-async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags }) {
+async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags, wraithrecordTags, wraithTags, lorebookTags, loreTags, temptation }) {
   console.log("🔥 Unleashing continuation...");
+
+  // Accept either key name from the page
+  const wraith = wraithrecordTags ?? wraithTags;
+  const lore = lorebookTags ?? loreTags;
+  console.log("🏷️ Tags received:", { wraith, lore });
 
   if (!chapterContent || chapterContent.trim().length === 0) {
     throw new Error("No content to continue from");
   }
 
-  const [characterContext, catalystIntel, relatedChapters] = await Promise.all([
+  const [characterContext, catalystIntel, relatedChapters, wraithIntel, loreIntel] = await Promise.all([
     getCharacterContext(characterTags),
     getCatalystIntel(catalystTags),
-    getRelatedChapters(storyTags)   // same call Devil makes
+    getRelatedChapters(storyTags),
+    getWraithRecordTags(wraith),
+    getLorebookTags(lore)
   ]);
 
   const chapterSummaries = relatedChapters
@@ -571,50 +506,69 @@ async function handleUnleash({ chapterContent, characterTags, storyTags, catalys
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
   }
+  if (wraithIntel) {
+    systemPrompt += `\n\nWRAITH RECORDS (LOCATIONS, RITUALS, SYMBOLS):\n${wraithIntel}`;
+  }
+  if (loreIntel) {
+    systemPrompt += `\n\nLOREBOOK (WORLD RULES):\n${loreIntel}`;
+  }
+
+  const t = getTemptation(temptation);
+  systemPrompt += `\n\n${t.note}`;
+  console.log(`🌡️ Temptation level: ${t.name}`);
 
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: `Continue this story. Pick up EXACTLY where it ends and keep going:\n\n${chapterContent}` }
   ];
 
-  return await callAI(messages, 0.85, 2000, 'unleash');
+  return await callAI(messages, 0.85, 2000, 'unleash', t.chain);
 }
+
 // ============================================
 // NO MERCY
 // ============================================
-async function handleNoMercy({ selectedText }) {
+async function handleNoMercy({ selectedText, temptation }) {
   console.log("💀 No Mercy rewrite...");
-  
+
   if (!selectedText || selectedText.trim().length === 0) {
     throw new Error("No text selected for rewrite");
   }
-  
+
+  const t = getTemptation(temptation);
+  console.log(`🌡️ Temptation level: ${t.name}`);
+
+  const systemPrompt = `You are a merciless editor who rewrites text to be DARKER, MORE INTENSE, and MORE VISCERAL. Show no mercy. Make every word count. Amplify emotions, darken the tone, and make the prose more powerful and disturbing. Return ONLY the rewritten text with no explanations.\n\n${t.note}`;
+
   const messages = [
-    {
-      role: "system",
-      content: "You are a merciless editor who rewrites text to be DARKER, MORE INTENSE, and MORE VISCERAL. Show no mercy. Make every word count. Amplify emotions, darken the tone, and make the prose more powerful and disturbing. Return ONLY the rewritten text with no explanations."
-    },
+    { role: "system", content: systemPrompt },
     {
       role: "user",
       content: `Rewrite this with NO MERCY - make it darker, more intense, more powerful:\n\n${selectedText}`
     }
   ];
-  
-  return await callAI(messages, 0.9, 1500, 'NoMercy'); // <--- ADD THIS
+
+  return await callAI(messages, 0.9, 1500, 'noMercy', t.chain);
 }
 
 // ============================================
 // INVOKE
 // ============================================
-async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags }) {
+async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags, wraithrecordTags, wraithTags, lorebookTags, loreTags, temptation }) {
   console.log("✨ Invoke starting...");
-  
-  // Get context from Wix
-  const [characterContext, catalystIntel] = await Promise.all([
+
+  // Accept either key name from the page
+  const wraith = wraithrecordTags ?? wraithTags;
+  const lore = lorebookTags ?? loreTags;
+  console.log("🏷️ Tags received:", { wraith, lore });
+
+  const [characterContext, catalystIntel, wraithIntel, loreIntel] = await Promise.all([
     getCharacterContext(characterTags),
-    getCatalystIntel(catalystTags)
+    getCatalystIntel(catalystTags),
+    getWraithRecordTags(wraith),
+    getLorebookTags(lore)
   ]);
-  
+
   let systemPrompt = `You are a dark creative writing assistant. The user wants to insert specific content at their cursor position. Make sure content flows. If user provides catalyst tags or character tags use information to progress the scene.
 
 Context before cursor:
@@ -630,49 +584,60 @@ Write ONLY what they asked for. Match the tone and style of the surrounding text
   if (characterContext) {
     systemPrompt += `\n\nCHARACTER CONTEXT:\n${characterContext}`;
   }
-  
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
   }
+  if (wraithIntel) {
+    systemPrompt += `\n\nWRAITH RECORDS (LOCATIONS, RITUALS, SYMBOLS):\n${wraithIntel}`;
+  }
+  if (loreIntel) {
+    systemPrompt += `\n\nLOREBOOK (WORLD RULES):\n${loreIntel}`;
+  }
+
+  const t = getTemptation(temptation);
+  systemPrompt += `\n\n${t.note}`;
+  console.log(`🌡️ Temptation level: ${t.name}`);
 
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt }
   ];
-  
-  return await callAI(messages, 0.85, 2500, 'Invoke'); // <--- ADD THIS
+
+  return await callAI(messages, 0.85, 2500, 'invoke', t.chain);
 }
 
 // ============================================
 // INTENSIFY
 // ============================================
-async function handleIntensify({ selectedText }) {
+async function handleIntensify({ selectedText, temptation }) {
   console.log("⚡ Intensifying text...");
-  
+
   if (!selectedText || selectedText.trim().length === 0) {
     throw new Error("No text selected to intensify");
   }
-  
+
+  const t = getTemptation(temptation);
+  console.log(`🌡️ Temptation level: ${t.name}`);
+
+  const systemPrompt = `You are a master of prose enhancement. Take existing text and make it MORE INTENSE, MORE VIVID, MORE POWERFUL. Enhance imagery, strengthen verbs, deepen emotions, and make every sentence hit harder. Maintain the core meaning but amplify everything. Return ONLY the enhanced text.\n\n${t.note}`;
+
   const messages = [
-    {
-      role: "system",
-      content: "You are a master of prose enhancement. Take existing text and make it MORE INTENSE, MORE VIVID, MORE POWERFUL. Enhance imagery, strengthen verbs, deepen emotions, and make every sentence hit harder. Maintain the core meaning but amplify everything. Return ONLY the enhanced text."
-    },
+    { role: "system", content: systemPrompt },
     {
       role: "user",
       content: `Intensify and enhance this text - make it more vivid, powerful, and impactful:\n\n${selectedText}`
     }
   ];
-  
-  return await callAI(messages, 0.8, 1500, 'Intensify'); // <--- ADD THIS;
+
+  return await callAI(messages, 0.8, 1500, 'intensify', t.chain);
 }
 
 // ============================================
 // CHARACTER CHAT
 // ============================================
-async function handleCharacterChat({ userMessage, characterId, characterName, personaType, chatbotInstructions, pov, characterTags, storyTags, toneTags, chatHistory}) {
+async function handleCharacterChat({ userMessage, characterId, characterName, personaType, chatbotInstructions, pov, characterTags, storyTags, toneTags, chatHistory }) {
   console.log("💬 Character chat starting...");
-  console.log("=" .repeat(60));
+  console.log("=".repeat(60));
   console.log("INCOMING CHAT DATA:");
   console.log("   Character:", characterName);
   console.log("   Character Tags:", characterTags);
@@ -680,74 +645,34 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   console.log("   Tone Tags:", toneTags);
   console.log("   POV:", pov);
   console.log("   Chat history length:", chatHistory?.length || 0);
-  console.log("=" .repeat(60));
-  
+  console.log("=".repeat(60));
+
   if (!userMessage || userMessage.trim().length === 0) {
     throw new Error("No message provided");
   }
-  
+
   // ============================================
-  // FETCH FULL CONTEXT FROM WIX (LIKE DEVIL POV)
+  // FETCH CONTEXT FROM WIX
   // ============================================
   console.log("🔍 Fetching chat context from Wix CMS...");
   const contextStart = Date.now();
-  
-  const [characterContext, chatHistoryContext, chapterSummaries, relatedChapters, catalystIntel] = await Promise.all([
+
+  // 4 fetchers -> 4 names (the old version destructured 5 and shifted everything)
+  const [characterContext, chatHistoryContext, relatedChapters, catalystIntel] = await Promise.all([
     getCharacterContext(characterTags),
     getChatHistory(characterTags),
     getRelatedChapters(storyTags),
     getCatalystIntel(characterTags) // Characters can also have catalyst tags
   ]);
-  
+
   console.log(`✅ Chat context fetched in ${Date.now() - contextStart}ms`);
-  console.log("=" .repeat(60));
-  console.log("CONTEXT DETAILS:");
-  console.log("=" .repeat(60));
-  
-  // Log character personality
-  if (characterContext) {
-    console.log("📝 CHARACTER PERSONALITY:");
-    console.log(characterContext.substring(0, 200) + "...");
-  } else {
-    console.log("⚠️ No character personality found");
-  }
-  
-  // Log related chapters
-  console.log("\n📚 RELATED CHAPTERS:");
-  if (relatedChapters.length > 0) {
-    relatedChapters.forEach((ch, idx) => {
-      console.log(`   [${idx + 1}] ${ch.title} (${ch.content.length} chars)`);
-      console.log(`       Preview: ${ch.content.substring(0, 100)}...`);
-    });
-  } else {
-    console.log("   ⚠️ No related chapters found");
-    console.log("   Searched for story tags:", storyTags);
-  }
-  
-  // Log catalyst intel
-  console.log("\n⚡ CATALYST INTEL:");
-  if (catalystIntel) {
-    console.log(catalystIntel.substring(0, 200) + "...");
-  } else {
-    console.log("   ⚠️ No catalyst intel found");
-    console.log("   Searched for character tags:", characterTags);
-  }
-  
-  // Log previous chat sessions
-  console.log("\n💬 PREVIOUS CHAT SESSIONS:");
-  if (chatHistoryContext.length > 0) {
-    console.log(`   Found ${chatHistoryContext.length} previous sessions`);
-    chatHistoryContext.forEach((session, idx) => {
-      console.log(`   Session ${idx + 1}: ${session.messages?.length || 0} messages`);
-    });
-  } else {
-    console.log("   ⚠️ No previous chat sessions found");
-  }
-  
-  console.log("=" .repeat(60));
-  
+  console.log("   Character personality:", characterContext ? "YES" : "NO");
+  console.log("   Related chapters:", relatedChapters.length);
+  console.log("   Catalyst intel:", catalystIntel ? "YES" : "NO");
+  console.log("   Previous chat sessions:", chatHistoryContext.length);
+
   // ============================================
-  // BUILD SYSTEM PROMPT WITH FULL CONTEXT
+  // BUILD SYSTEM PROMPT
   // ============================================
   const characterTraits = characterTags?.length > 0 ? `Your character traits: ${characterTags.join(', ')}` : '';
   const storyContext = storyTags?.length > 0 ? `Story tags: ${storyTags.join(', ')}` : '';
@@ -755,145 +680,60 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   const personalityContext = chatbotInstructions || characterContext || '';
   const povContext = pov || '';
 
-  
   let systemPrompt = `You are ${characterName}, a dark and complex character. Stay in character at all times. Be dark, intense, and true to your nature. Be creative while driving development forward. Be aware of your arc if tagged in any chapters. And keep responses short.\n\n`;
-  
+
   if (personalityContext) {
     systemPrompt += `YOUR CORE PERSONALITY:\n${personalityContext}\n\n`;
   }
-  
+
   systemPrompt += `${characterTraits}\n${storyContext}\n${toneContext}`;
 
   if (povContext) {
-  systemPrompt += `\n\nPOV & WORLDBUILDING:\n${povContext}`;
+    systemPrompt += `\n\nPOV & WORLDBUILDING:\n${povContext}`;
   }
-  
+
   if (personaType === 'author-mode') {
     systemPrompt = `You are ${characterName}, and you are AWARE you're a character created by this author. Be meta. Be accusatory. Question their choices. Challenge them. Make them uncomfortable about what they've written. Be dark and intense, blurring the line between fiction and reality.\n\n${personalityContext}`;
   }
-  
-  // Add catalyst intel
+
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
   }
-  
-  // Add related chapters (story context)
+
   if (relatedChapters.length > 0) {
     systemPrompt += `\n\nSTORY SO FAR (CHAPTER SUMMARIES):\n`;
     relatedChapters.forEach(ch => {
       systemPrompt += `[${ch.title}]\n${ch.content}\n\n`;
     });
   }
-  
-  // Add previous conversations - ONLY LAST 10 MESSAGES FROM CURRENT SESSION
-  console.log("📝 Including chat history: LAST 10 MESSAGES from current session only");
-  
-  console.log("\n📊 FINAL CONTEXT SUMMARY:");
-  console.log("   Total prompt length:", systemPrompt.length, "chars");
-  console.log("   Character personality:", personalityContext ? "YES" : "NO");
-  console.log("   Related chapters:", relatedChapters.length);
-  console.log("   Catalyst intel:", catalystIntel ? "YES" : "NO");
-  console.log("   Current session messages:", chatHistory?.length || 0, "(sending last 10)");
-  console.log("=" .repeat(60));
-  
-  // Only use the CURRENT chat session's last 10 messages
+
+  console.log("📊 Total prompt length:", systemPrompt.length, "chars (sending last 10 messages of current session)");
+
+  // Only the CURRENT session's last 10 messages
   const messages = [
     { role: "system", content: systemPrompt },
-    ...(chatHistory || []).slice(-10), // ONLY last 10 from CURRENT session
+    ...(chatHistory || []).slice(-10),
     { role: "user", content: userMessage }
   ];
-  
-  return await callAI(messages, 0.85, 1500, 'CharacterChat'); // <--- ADD THIS;
-}
-// ============================================
-// DEVIL POV (Streamlined)
-// ============================================
-async function handleDevilPOV({ characterName, characterTags, storyTags, toneTags, catalystTags, wraithrecordTags, lorebookTags }) {
-  console.log("👿 Devil POV - Full context mode");
-  
-  // Fetch all context from Wix in parallel
-  console.log("🔍 Fetching context from Wix CMS...");
-  const contextStart = Date.now();
-  
-  const [characterContext, chatHistory, relatedChapters, catalystIntel] = await Promise.all([
-    getCharacterContext(characterTags),
-    getChatHistory(characterTags),
-    getRelatedChapters(storyTags),
-    getCatalystIntel(catalystTags),
-    getWraithRecordTags(wraithTags),
-    getLorebookTags(loreTags)
-  ]);
-  
-  console.log(`✅ Context fetched in ${Date.now() - contextStart}ms`);
-  
-  // Build system prompt
-  const characterTraits = characterTags?.length > 0 ? `Character traits: ${characterTags.join(', ')}` : '';
-  const storyContext = storyTags?.length > 0 ? `Story: ${storyTags.join(', ')}` : '';
-  const toneContext = toneTags?.length > 0 ? `Tone: ${toneTags.join(', ')}` : '';
-  
-  let systemPrompt = `You are ${characterName || 'the antagonist'}, a dark and complex character. 
-Write from YOUR perspective based on the story context and what's happened so far. Be DARK, VISCERAL, and UNAPOLOGETICALLY YOURSELF. Show your motivations, your twisted logic, your desires. Make the reader uncomfortable. Make them understand you even as they fear you. If user provides a catalyst tag use intel to progress the narrative while obeying them strictly.
-${characterTraits}
-${storyContext}
-${toneContext}`;
-  
-  if (characterContext) {
-    systemPrompt += `\n\nYOUR CORE PERSONALITY:\n${characterContext}`;
-  }
-  
-  if (catalystIntel) {
-    systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
-  }
-  
-  if (relatedChapters.length > 0) {
-    systemPrompt += `\n\nRELATED CHAPTERS FROM THIS STORY:\n`;
-    relatedChapters.forEach(ch => {
-      systemPrompt += `[${ch.title}]\n${ch.content}\n\n`;
-    });
-  }
-  
-  if (chatHistory.length > 0) {
-    systemPrompt += `\n\nCONVERSATIONS THE AUTHOR HAS HAD WITH YOU:\n`;
-    chatHistory.forEach((session, idx) => {
-      systemPrompt += `\n[Session ${idx + 1}]\n`;
-      session.messages?.slice(-5).forEach(msg => {
-        systemPrompt += `${msg.type === 'user' ? 'AUTHOR' : 'YOU'}: ${msg.text}\n`;
-      });
-    });
-  }
-  
-  systemPrompt += `\n\nWrite the next chapter from your POV based on everything above. No explanations, no meta-commentary. Pure character voice. Continue the story from YOUR dark perspective.`;
-  
-  console.log("📊 Context summary:");
-  console.log("   Total prompt length:", systemPrompt.length, "chars");
-  console.log("   Character personality:", characterContext ? "YES" : "NO");
-  console.log("   Chat history:", chatHistory.length, "sessions");
-  console.log("   Related chapters:", relatedChapters.length);
-  console.log("   Catalyst intel:", catalystIntel ? "YES" : "NO");
-  
-  const result = await callAI([
-    { role: "system", content: systemPrompt },
-    { role: "user", content: `Write the next chapter from your twisted perspective, picking up from where the story left off:` }
-  ], 0.9, 2500);
-  
-  return result;
+
+  return await callAI(messages, 0.85, 1500, 'characterChat');
 }
 
 // ============================================
 // MANUSCRIPT ANALYSIS TOOLS
 // ============================================
 
-// Special AI call for Claude Sonnet 4 (for analysis tools)
+// Claude for analysis tools
 async function callClaudeForAnalysis(messages, maxTokens = 3000) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  
+
   if (!apiKey) {
     throw new Error("No API key configured");
   }
-  
+
   try {
-    console.log(`🔬 Using Claude Sonnet 4 for analysis`);
-    
+    console.log(`🔬 Using Claude Sonnet 4.5 for analysis`);
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -909,19 +749,30 @@ async function callClaudeForAnalysis(messages, maxTokens = 3000) {
         max_tokens: maxTokens
       })
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Claude API failed: ${errorText}`);
     }
-    
+
     const data = await response.json();
-    console.log(`✅ Claude Sonnet 4 analysis complete`);
+    console.log(`✅ Claude analysis complete`);
     return data.choices[0].message.content;
-    
+
   } catch (error) {
     console.error(`❌ Claude analysis error:`, error.message);
     throw error;
+  }
+}
+
+// Shared JSON cleanup for the analysis tools
+function parseJSONResponse(response, errorMessage) {
+  try {
+    const cleaned = response.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error(`Failed to parse JSON (${errorMessage}):`, response);
+    throw new Error(errorMessage);
   }
 }
 
@@ -930,11 +781,11 @@ async function callClaudeForAnalysis(messages, maxTokens = 3000) {
 // ============================================
 async function handleOveruseScanner({ text }) {
   console.log("🗡 Running Overuse Scanner...");
-  
+
   if (!text || text.trim().length === 0) {
     throw new Error("No text provided for analysis");
   }
-  
+
   const messages = [
     {
       role: "user",
@@ -975,17 +826,9 @@ Chapter text:
 ${text}`
     }
   ];
-  
+
   const response = await callClaudeForAnalysis(messages, 3000);
-  
-  // Parse JSON response
-  try {
-    const cleaned = response.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (e) {
-    console.error("Failed to parse JSON:", response);
-    throw new Error("Failed to parse analysis response");
-  }
+  return parseJSONResponse(response, "Failed to parse analysis response");
 }
 
 // ============================================
@@ -993,11 +836,11 @@ ${text}`
 // ============================================
 async function handlePacingAnalyzer({ text }) {
   console.log("🧠 Running Pacing Analyzer...");
-  
+
   if (!text || text.trim().length === 0) {
     throw new Error("No text provided for analysis");
   }
-  
+
   const messages = [
     {
       role: "user",
@@ -1022,15 +865,9 @@ Chapter text:
 ${text}`
     }
   ];
-  
+
   const response = await callClaudeForAnalysis(messages, 3000);
-  
-  try {
-    const cleaned = response.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (e) {
-    throw new Error("Failed to parse pacing analysis");
-  }
+  return parseJSONResponse(response, "Failed to parse pacing analysis");
 }
 
 // ============================================
@@ -1038,11 +875,11 @@ ${text}`
 // ============================================
 async function handleSentenceMechanics({ text }) {
   console.log("🧬 Running Sentence Mechanics Lab...");
-  
+
   if (!text || text.trim().length === 0) {
     throw new Error("No text provided for analysis");
   }
-  
+
   const messages = [
     {
       role: "user",
@@ -1068,15 +905,9 @@ Chapter text:
 ${text}`
     }
   ];
-  
+
   const response = await callClaudeForAnalysis(messages, 2500);
-  
-  try {
-    const cleaned = response.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (e) {
-    throw new Error("Failed to parse mechanics analysis");
-  }
+  return parseJSONResponse(response, "Failed to parse mechanics analysis");
 }
 
 // ============================================
@@ -1084,11 +915,11 @@ ${text}`
 // ============================================
 async function handleDialogueCritic({ text }) {
   console.log("🩸 Running Dialogue Blade Critic...");
-  
+
   if (!text || text.trim().length === 0) {
     throw new Error("No text provided for analysis");
   }
-  
+
   const messages = [
     {
       role: "user",
@@ -1114,15 +945,9 @@ Chapter text:
 ${text}`
     }
   ];
-  
+
   const response = await callClaudeForAnalysis(messages, 2500);
-  
-  try {
-    const cleaned = response.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (e) {
-    throw new Error("Failed to parse dialogue analysis");
-  }
+  return parseJSONResponse(response, "Failed to parse dialogue analysis");
 }
 
 // ============================================
@@ -1130,20 +955,21 @@ ${text}`
 // ============================================
 async function handleAICritic({ text, persona }) {
   console.log(`🕯️ Running AI Critic Mode: ${persona}...`);
-  
+
   if (!text || text.trim().length === 0) {
     throw new Error("No text provided for critique");
   }
-  
+
   const personas = {
     cold_editor: "You are a cold, ruthless editor who has seen thousands of manuscripts. You care about craft, not feelings. Be direct, surgical, and focus on what WORKS and what DOESN'T.",
     market_hawk: "You are a market-savvy publishing hawk who knows what SELLS. Evaluate commercial viability, genre expectations, and reader engagement. Be pragmatic and business-focused.",
     literary_judge: "You are a literary fiction judge who values prose artistry, thematic depth, and narrative innovation. Be intellectual and demanding about craft excellence.",
     dark_romance_gatekeeper: "You are a dark romance gatekeeper who knows the genre inside out. Judge heat levels, power dynamics, emotional stakes, and whether this delivers what readers crave. Be fierce."
   };
-  
+
   const selectedPersona = personas[persona] || personas.cold_editor;
-  
+  const personaLabel = String(persona || 'cold_editor').replace(/_/g, ' ').toUpperCase();
+
   const messages = [
     {
       role: "user",
@@ -1161,7 +987,7 @@ NO EDITS. Only assessment.
 
 Return as JSON array with ONE marker:
 - "icon": "🎭"
-- "type": "${persona.replace('_', ' ').toUpperCase()}"
+- "type": "${personaLabel}"
 - "message": "Overall Assessment"
 - "detail": Your full critique (under 500 words)
 
@@ -1171,15 +997,9 @@ Chapter text:
 ${text}`
     }
   ];
-  
+
   const response = await callClaudeForAnalysis(messages, 3500);
-  
-  try {
-    const cleaned = response.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (e) {
-    throw new Error("Failed to parse critic response");
-  }
+  return parseJSONResponse(response, "Failed to parse critic response");
 }
 
 // ============================================
@@ -1187,11 +1007,11 @@ ${text}`
 // ============================================
 async function handleStructuralCheck({ text }) {
   console.log("🧿 Running Structural Integrity Check...");
-  
+
   if (!text || text.trim().length === 0) {
     throw new Error("No text provided for analysis");
   }
-  
+
   const messages = [
     {
       role: "user",
@@ -1217,19 +1037,16 @@ Chapter text:
 ${text}`
     }
   ];
-  
+
   const response = await callClaudeForAnalysis(messages, 2500);
-  
-  try {
-    const cleaned = response.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (e) {
-    throw new Error("Failed to parse structural analysis");
-  }
+  return parseJSONResponse(response, "Failed to parse structural analysis");
 }
 
+// ============================================
+// IMPACT MATRIX (used by trajectory engine)
+// ============================================
 const LOREBOOK_COLLECTION = "Lorebook";
- 
+
 const LOREBOOK_FIELD_MAP = {
   "Organization":    ["title", "orgSummary"],
   "Bloodlines":      ["bloodlinestitle", "bloodlineOrigin"],
@@ -1238,22 +1055,22 @@ const LOREBOOK_FIELD_MAP = {
   "Secrets":         ["secretsTitle", "secretsSummary", "reveal"],
   "Myths & History": ["mythTitle", "mythSummary"]
 };
- 
+
 const WRAITH_RECORD_FIELDS = ["title", "about"];
- 
+
 // title_fld is the character's name; bloodlineOriginsghostOrigin is their soul
 // hunger (field name is a legacy mess, nothing to do with "title").
 const CHARACTER_FIELDS = ["title_fld", "bloodlineOriginsghostOrigin"];
- 
+
 // Pulls just `fields` off one item, by _id, instead of the whole record.
 async function getTargetedFields(collection, itemId, fields) {
   const result = await queryWixCMS(collection, { _id: { $eq: itemId } }, 1);
- 
+
   if (result.items.length === 0) {
     console.log(`⚠️ No item found in "${collection}" for id ${itemId}`);
     return null;
   }
- 
+
   const data = result.items[0].data || {};
   const trimmed = {};
   fields.forEach((field) => {
@@ -1261,11 +1078,11 @@ async function getTargetedFields(collection, itemId, fields) {
       trimmed[field] = data[field];
     }
   });
- 
+
   console.log(`✅ Pulled ${Object.keys(trimmed).length}/${fields.length} fields from "${collection}" (${itemId}):`, Object.keys(trimmed));
   return trimmed;
 }
- 
+
 // refs: array of { id, type, category } from the cockpit's Impact Matrix —
 // type is 'character' | 'lore' | 'wraith'; category (lore only) is one of
 // the LOREBOOK_FIELD_MAP keys above.
@@ -1274,34 +1091,31 @@ async function getImpactIntel(refs) {
     console.log("🗺️ Impact Matrix: no references attached to this sequence");
     return [];
   }
- 
+
   console.log(`🗺️ Impact Matrix: fetching intel for ${refs.length} reference(s)`);
- 
+
   const results = await Promise.all(refs.map(async (ref) => {
     try {
       if (ref.type === 'character') {
-        console.log(`👤 Fetching character fields: ${ref.id}`);
         const fields = await getTargetedFields("Characters", ref.id, CHARACTER_FIELDS);
         return fields ? { type: 'character', ...fields } : null;
       }
- 
+
       if (ref.type === 'wraith') {
-        console.log(`👻 Fetching wraith record fields: ${ref.id}`);
         const fields = await getTargetedFields("WraithRecords", ref.id, WRAITH_RECORD_FIELDS);
         return fields ? { type: 'wraith', ...fields } : null;
       }
- 
+
       if (ref.type === 'lore') {
         const fieldList = LOREBOOK_FIELD_MAP[ref.category];
         if (!fieldList) {
           console.warn(`⚠️ Unknown lorebook category "${ref.category}" for ref ${ref.id}`);
           return null;
         }
-        console.log(`📖 Fetching lorebook fields [${ref.category}]: ${ref.id}`);
         const fields = await getTargetedFields(LOREBOOK_COLLECTION, ref.id, fieldList);
         return fields ? { type: 'lore', category: ref.category, ...fields } : null;
       }
- 
+
       console.warn(`⚠️ Unknown impact ref type "${ref.type}" for ${ref.id}`);
       return null;
     } catch (error) {
@@ -1309,12 +1123,12 @@ async function getImpactIntel(refs) {
       return null;
     }
   }));
- 
+
   const found = results.filter(Boolean);
   console.log(`✅ Impact Matrix intel: ${found.length}/${refs.length} reference(s) resolved`);
   return found;
 }
- 
+
 // ============================================
 // TRAJECTORY ENGINE — three modes, one function
 // ============================================
@@ -1323,45 +1137,45 @@ const TRAJECTORY_FIELDS = {
   ripple: ["factionReactions", "loreThreadActivation", "wraithRecordUpdates", "corruptionSpread", "futureDanger", "continuityShifts"],
   reveal: ["secretsSurfacing", "hiddenMotivesRevealed", "bloodlineImplications", "soulHungerExposure", "relationshipFractures", "plotTwists", "characterRealizations"]
 };
- 
+
 const TRAJECTORY_PROMPTS = {
   chapter: `You are Devil, calculating the trajectory of a chapter from four armed narrative catalysts:
 - Primary Catalyst -> the spark
 - Secondary Pressure -> the squeeze
 - Background Corruption -> the rot
 - Delayed Detonation -> the bomb
- 
+
 Read the full payload and calculate the chapter's escalation, fallout, pacing, tension curve, character destabilization, and lore activation. This is the chapter trajectory engine — think in terms of what actually happens on the page as these four forces collide.`,
- 
+
   ripple: `You are Devil, calculating story gravity — how this moment ripples outward across the entire world, not just the chapter it happens in.
- 
+
 Read the full payload and calculate faction reactions, lore thread activation, wraith record updates, corruption spread, future danger, and continuity shifts. This is world-level consequence, not scene-level — think in terms of what changes beyond the room this moment happens in.`,
- 
+
   reveal: `You are Devil, calculating visibility — what becomes known, to whom, and how it changes the story.
- 
+
 Read the full payload and calculate secrets surfacing, hidden motives revealed, bloodline implications, soul hunger exposure, relationship fractures, plot twists, and character realizations. This is a truth-exposure calculation — think in terms of who learns what, and what it costs them to know it.`
 };
- 
+
 // body: { mode: 'chapter'|'ripple'|'reveal', armedCatalysts: {...}, impactRefs: [{id,type,category}] }
 async function handleTrajectory({ mode, armedCatalysts, impactRefs }) {
   console.log(`🧮 Running trajectory engine: ${mode}`);
- 
+
   if (!TRAJECTORY_FIELDS[mode]) {
     throw new Error(`Unknown trajectory mode: ${mode}`);
   }
- 
+
   if (!armedCatalysts || Object.values(armedCatalysts).every(c => !c)) {
     throw new Error("No armed catalysts provided");
   }
- 
+
   const impactIntel = await getImpactIntel(impactRefs);
   const fieldList = TRAJECTORY_FIELDS[mode].join(', ');
- 
+
   const messages = [
     {
       role: "system",
       content: `${TRAJECTORY_PROMPTS[mode]}
- 
+
 Return ONLY valid JSON — a single object with exactly these keys: ${fieldList}.
 Each value should be a short string, or an array of short strings if the field
 naturally breaks into multiple points. No preamble, no markdown code blocks,
@@ -1372,35 +1186,26 @@ no extra keys.`
       content: `ARMED CATALYSTS:\n${JSON.stringify(armedCatalysts, null, 2)}\n\nIMPACT MATRIX INTEL:\n${JSON.stringify(impactIntel, null, 2)}`
     }
   ];
- 
+
   const response = await callClaudeForAnalysis(messages, 2000);
- 
-  try {
-    const cleaned = response.replace(/```json|```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (e) {
-    console.error("Failed to parse trajectory response:", response);
-    throw new Error("Failed to parse trajectory analysis");
-  }
+  return parseJSONResponse(response, "Failed to parse trajectory analysis");
 }
 
 // ============================================
 // CHAPTER SUMMARY (triggered by a tiny Wix afterInsert hook)
-// Paste below your other handlers in index.js. Reuses your existing
-// callClaudeForAnalysis() and WIX_API_KEY / WIX_ACCOUNT_ID / WIX_SITE_ID.
 // ============================================
 async function handleChapterSummary({ chapterId }) {
   console.log(`📝 Generating summary for chapter ${chapterId}...`);
- 
+
   if (!chapterId) throw new Error("chapterId required");
- 
+
   const found = await queryWixCMS("BackupChapters", { _id: { $eq: chapterId } }, 1);
   if (found.items.length === 0) throw new Error("Chapter not found in BackupChapters");
- 
+
   const chapter = found.items[0].data;
   const text = chapter.chapterContent || "";
   if (text.trim().length === 0) throw new Error("Chapter has no content yet");
- 
+
   const messages = [
     {
       role: "user",
@@ -1415,41 +1220,42 @@ FORESHADOWING: 1-2 lines. Planted hints, ominous details, or setups likely to pa
 Feel free to have personality. 
 
 Chapter title: ${chapter.title || "Untitled"}
- 
+
 Chapter text:
 ${text}`
     }
   ];
- 
+
   const summary = (await callClaudeForAnalysis(messages, 400)).trim();
   console.log(`✅ Summary generated for chapter ${chapterId}`);
   return summary;
 }
- 
+
 // ============================================
 // TAG JANITOR
 // ============================================
-
-async function handleTagGeneration({ name, type }) {
+async function handleTagGeneration({ name, type, existingTags }) {
   console.log(`🏷️ Generating ${type} tag for: ${name}`);
-  
+
   if (!name || name.trim().length === 0) {
     throw new Error("No name provided for tag generation");
   }
-  
+
   const apiKey = process.env.OPENROUTER_API_KEY;
-  
+
   if (!apiKey) {
     throw new Error("No API key configured");
   }
-  
+
+  const avoid = existingTags?.length ? `Avoid these existing tags: ${existingTags.join(', ')}` : '';
+
   let prompt;
   if (type === 'character') {
-    prompt = `Generate a character tag. Rules: 1) Must start with @, 2) Format: @FirstLast or @FLast if no last name, 3) No spaces, PascalCase, 4) Remove special characters. Name: ${name}. ${existingTags?.length ? `Avoid these existing tags: ${existingTags.join(', ')}` : ''} Return ONLY the tag, nothing else.`;
+    prompt = `Generate a character tag. Rules: 1) Must start with @, 2) Format: @FirstLast or @FLast if no last name, 3) No spaces, PascalCase, 4) Remove special characters. Name: ${name}. ${avoid} Return ONLY the tag, nothing else.`;
   } else {
-    prompt = `Generate a story tag. Rules: 1) Must start with @, 2) Format: @TitleWithoutSpaces, 3) PascalCase, 4) Keep concise. Title: ${name}. ${existingTags?.length ? `Avoid these existing tags: ${existingTags.join(', ')}` : ''} Return ONLY the tag, nothing else.`;
+    prompt = `Generate a story tag. Rules: 1) Must start with @, 2) Format: @TitleWithoutSpaces, 3) PascalCase, 4) Keep concise. Title: ${name}. ${avoid} Return ONLY the tag, nothing else.`;
   }
-  
+
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -1462,22 +1268,22 @@ async function handleTagGeneration({ name, type }) {
       body: JSON.stringify({
         model: "openai/gpt-4.1-mini",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.1, // Very low for consistency
+        temperature: 0.1,
         max_tokens: 50
       })
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Tag generation failed: ${errorText}`);
     }
-    
+
     const data = await response.json();
     const tag = data.choices[0].message.content.trim();
-    
+
     console.log(`✅ Generated tag: ${tag}`);
     return { tag };
-    
+
   } catch (error) {
     console.error(`❌ Tag generation error:`, error.message);
     throw error;
@@ -1490,39 +1296,6 @@ async function handleTagGeneration({ name, type }) {
 const PORT = process.env.PORT || 3333;
 app.listen(PORT, () => {
   console.log(`🔥 Devil Muse listening on port ${PORT}`);
-  console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
+  console.log(`   Chaste: ${CHASTE_CHAIN.join(', ')} | Spice: ${SPICE_CHAIN.join(', ')}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
