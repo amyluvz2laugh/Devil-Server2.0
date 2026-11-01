@@ -534,17 +534,19 @@ async function handleUnhinge({ chapterContent, characterTags, temptation }) {
 // ============================================
 // UNLEASH
 // ============================================
-async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags, temptation }) {
+async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags, loreTags, wraithTags, temptation}) {
   console.log("🔥 Unleashing continuation...");
 
   if (!chapterContent || chapterContent.trim().length === 0) {
     throw new Error("No content to continue from");
   }
 
-  const [characterContext, catalystIntel, relatedChapters] = await Promise.all([
+  const [characterContext, catalystIntel, relatedChapters, wraithIntel, loreIntel] = await Promise.all([
     getCharacterContext(characterTags),
     getCatalystIntel(catalystTags),
-    getRelatedChapters(storyTags)   // same call Devil makes
+    getRelatedChapters(storyTags),   // same call Devil makes
+    getLoreTags(loreTags),
+    getWraithTags(wraithTags)
   ]);
 
   const chapterSummaries = relatedChapters
@@ -562,6 +564,12 @@ async function handleUnleash({ chapterContent, characterTags, storyTags, catalys
   }
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
+  }
+  if (wraithIntel) {
+    systemPrompt += `\n\nWRAITH RECORDS (LOCATIONS, RITUALS, SYMBOLS):\n${wraithIntel}`;
+  }
+  if (loreIntel) {
+    systemPrompt += `\n\nLOREBOOK (WORLD RULES):\n${loreIntel}`;
   }
   const t = getTemptation(temptation);
   systemPrompt += `\n\n${t.note}`;
@@ -604,13 +612,15 @@ async function handleNoMercy({ selectedText, temptation }) {
 // ============================================
 // INVOKE
 // ============================================
-async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags, temptation }) {
+async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags, wraithTags, lorebookTags, temptation }) {
   console.log("✨ Invoke starting...");
   
   // Get context from Wix
-  const [characterContext, catalystIntel] = await Promise.all([
+  const [characterContext, catalystIntel, wraithIntel, loreIntel] = await Promise.all([
     getCharacterContext(characterTags),
     getCatalystIntel(catalystTags)
+    getWraithTags(wraithTags),
+    getLorebookTags(lorebookTags)
   ]);
   
   let systemPrompt = `You are a dark creative writing assistant. The user wants to insert specific content at their cursor position. Make sure content flows. If user provides catalyst tags or character tags use information to progress the scene.
@@ -631,6 +641,12 @@ Write ONLY what they asked for. Match the tone and style of the surrounding text
   
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
+  }
+  if (wraithIntel) {
+    systemPrompt += `\n\nWRAITH RECORDS (LOCATIONS, RITUALS, SYMBOLS):\n${wraithIntel}`;
+  }
+  if (loreIntel) {
+    systemPrompt += `\n\nLOREBOOK (WORLD RULES):\n${loreIntel}`;
   }
   const t = getTemptation(temptation);
   systemPrompt += `\n\n${t.note}`;
