@@ -55,18 +55,17 @@ function getTemptation(level) {
 // ============================================
 // AI CALL WITH FALLBACK + TRAINING DATA LOGGING
 // ============================================
-async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType = null) {
-  const models = [PRIMARY_MODEL, BACKUP_MODEL, TERTIARY_MODEL];
+async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType = null, chain = CHASTE_CHAIN) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  
+
   if (!apiKey) {
     throw new Error("No API key configured");
   }
-  
+
   for (const model of chain) {
     try {
       console.log(`🤖 [${buttonType || 'general'}] Trying model: ${model}`);
-      
+
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -82,31 +81,29 @@ async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType
           max_tokens: maxTokens
         })
       });
-    
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`❌ ${model} failed:`, errorText);
         continue;
       }
-      
+
       const data = await response.json();
       const output = data.choices[0].message.content;
       console.log(`✅ Success with ${model}`);
-      
-      // 🔥 LOG TO TRAINING DATA FILE (only for writing functions)
+
       if (buttonType && shouldLogForTraining(buttonType)) {
         logTrainingData(buttonType, messages, output, model);
       }
-      
+
       return output;
-      
+
     } catch (error) {
       console.error(`❌ ${model} error:`, error.message);
       continue;
     }
   }
-  
+
   throw new Error("All models failed");
 }
 
@@ -493,21 +490,15 @@ app.get('/download-training-data', (req, res) => {
       charsGenerated: result.length,
       processingTime: Date.now() - startTime
     });
-    
+
   } catch (err) {
     console.error(`❌ Error in ${req.body.action}:`, err);
-    res.status(500).json({ 
+    res.status(500).json({
       error: `${req.body.action || 'Action'} failed`,
-      details: err.message 
+      details: err.message
     });
-    res.json({
-  status: 'success',
-  markers: result, // This is now the JSON array
-  processingTime: Date.now() - startTime
-});
   }
 });
-
 
 // ============================================
 // UNHINGE
