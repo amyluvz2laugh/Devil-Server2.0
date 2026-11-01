@@ -614,15 +614,16 @@ async function handleNoMercy({ selectedText, temptation }) {
 // ============================================
 async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags, wraithTags, lorebookTags, temptation }) {
   console.log("✨ Invoke starting...");
-  
+  console.log("🏷️ Tags received:", { wraithTags, lorebookTags });
+
   // Get context from Wix
   const [characterContext, catalystIntel, wraithIntel, loreIntel] = await Promise.all([
     getCharacterContext(characterTags),
     getCatalystIntel(catalystTags),
-    getWraithIntel(wraithTags),
-    getLoreIntel(loreTags)
+    getWraithRecordTags(wraithTags),
+    getLorebookTags(lorebookTags)
   ]);
-  
+
   let systemPrompt = `You are a dark creative writing assistant. The user wants to insert specific content at their cursor position. Make sure content flows. If user provides catalyst tags or character tags use information to progress the scene.
 
 Context before cursor:
@@ -638,16 +639,19 @@ Write ONLY what they asked for. Match the tone and style of the surrounding text
   if (characterContext) {
     systemPrompt += `\n\nCHARACTER CONTEXT:\n${characterContext}`;
   }
-  
+
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
   }
+
   if (wraithIntel) {
     systemPrompt += `\n\nWRAITH RECORDS (LOCATIONS, RITUALS, SYMBOLS):\n${wraithIntel}`;
   }
+
   if (loreIntel) {
     systemPrompt += `\n\nLOREBOOK (WORLD RULES):\n${loreIntel}`;
   }
+
   const t = getTemptation(temptation);
   systemPrompt += `\n\n${t.note}`;
   console.log(`🌡️ Temptation level: ${t.name}`);
@@ -656,8 +660,8 @@ Write ONLY what they asked for. Match the tone and style of the surrounding text
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt }
   ];
-  
-  return await callAI(messages, 0.85, 2500, 'Invoke', t.chain); // <--- ADD THIS
+
+  return await callAI(messages, 0.85, 2500, 'invoke', t.chain);
 }
 
 // ============================================
