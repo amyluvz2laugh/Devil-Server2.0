@@ -63,9 +63,9 @@ async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType
     throw new Error("No API key configured");
   }
   
-  for (const model of models) {
+  for (const model of chain) {
     try {
-      console.log(`🤖 [${label}] Trying model: ${model}`);
+      console.log(`🤖 [${buttonType || 'general'}] Trying model: ${model}`);
       
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -508,13 +508,11 @@ app.get('/download-training-data', (req, res) => {
   }
 });
 
+
 // ============================================
 // UNHINGE
 // ============================================
-// ============================================
-// UNHINGE
-// ============================================
-async function handleUnhinge({ chapterContent, characterTags }) {
+async function handleUnhinge({ chapterContent, characterTags, temptation }) {
   console.log("😈 Unhinging chapter...");
 
   if (!chapterContent || chapterContent.trim().length === 0) {
@@ -522,6 +520,9 @@ async function handleUnhinge({ chapterContent, characterTags }) {
   }
 
   const characterContext = await getCharacterContext(characterTags);
+  const t = getTemptation(temptation);
+  systemPrompt += `\n\n${t.note}`;
+  console.log(`🌡️ Temptation level: ${t.name}`);
 
   let systemPrompt = "You are a dark, twisted muse. Your job is to take existing writing and make it DARKER, more UNHINGED, more VISCERAL. Push boundaries. Increase tension. Add psychological horror elements. Make it raw and disturbing while maintaining the core narrative. Do not add explanations or meta-commentary - ONLY return the darkened version of the text.";
 
@@ -537,12 +538,12 @@ async function handleUnhinge({ chapterContent, characterTags }) {
     }
   ];
 
-  return await callAI(messages, 0.9, 3000, 'unhinge');
+  return await callAI(messages, 0.9, 3000, 'unhinge', t.chain);
 }
 // ============================================
 // UNLEASH
 // ============================================
-async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags }) {
+async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags, temptation }) {
   console.log("🔥 Unleashing continuation...");
 
   if (!chapterContent || chapterContent.trim().length === 0) {
@@ -571,23 +572,29 @@ async function handleUnleash({ chapterContent, characterTags, storyTags, catalys
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
   }
+  const t = getTemptation(temptation);
+  systemPrompt += `\n\n${t.note}`;
+  console.log(`🌡️ Temptation level: ${t.name}`);
 
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: `Continue this story. Pick up EXACTLY where it ends and keep going:\n\n${chapterContent}` }
   ];
 
-  return await callAI(messages, 0.85, 2000, 'unleash');
+  return await callAI(messages, 0.85, 2000, 'unleash', t.chain);
 }
 // ============================================
 // NO MERCY
 // ============================================
-async function handleNoMercy({ selectedText }) {
+async function handleNoMercy({ selectedText, temptation }) {
   console.log("💀 No Mercy rewrite...");
   
   if (!selectedText || selectedText.trim().length === 0) {
     throw new Error("No text selected for rewrite");
   }
+  const t = getTemptation(temptation);
+  const systemPrompt = `You are a merciliess editor who rewrites text to be darker and more intense.\n\n${t.note}`;
+  console.log(`🌡️ Temptation level: ${t.name}`);
   
   const messages = [
     {
@@ -600,13 +607,13 @@ async function handleNoMercy({ selectedText }) {
     }
   ];
   
-  return await callAI(messages, 0.9, 1500, 'NoMercy'); // <--- ADD THIS
+  return await callAI(messages, 0.9, 1500, 'NoMercy', t.chain); // <--- ADD THIS
 }
 
 // ============================================
 // INVOKE
 // ============================================
-async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags }) {
+async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags, temptation }) {
   console.log("✨ Invoke starting...");
   
   // Get context from Wix
@@ -634,24 +641,30 @@ Write ONLY what they asked for. Match the tone and style of the surrounding text
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
   }
+  const t = getTemptation(temptation);
+  systemPrompt += `\n\n${t.note}`;
+  console.log(`🌡️ Temptation level: ${t.name}`);
 
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt }
   ];
   
-  return await callAI(messages, 0.85, 2500, 'Invoke'); // <--- ADD THIS
+  return await callAI(messages, 0.85, 2500, 'Invoke', t.chain); // <--- ADD THIS
 }
 
 // ============================================
 // INTENSIFY
 // ============================================
-async function handleIntensify({ selectedText }) {
+async function handleIntensify({ selectedText, temptation }) {
   console.log("⚡ Intensifying text...");
   
   if (!selectedText || selectedText.trim().length === 0) {
     throw new Error("No text selected to intensify");
   }
+  const t = getTemptation(temptation);
+  const systemPrompt = `You are a master of prose enhancement. ...your existing text... Return ONLY the enhanced text.\n\n${t.note}`;
+  console.log(`🌡️ Temptation level: ${t.name}`);
   
   const messages = [
     {
@@ -664,7 +677,7 @@ async function handleIntensify({ selectedText }) {
     }
   ];
   
-  return await callAI(messages, 0.8, 1500, 'Intensify'); // <--- ADD THIS;
+  return await callAI(messages, 0.8, 1500, 'Intensify', t.chain); // <--- ADD THIS;
 }
 
 // ============================================
@@ -1490,7 +1503,7 @@ async function handleTagGeneration({ name, type }) {
 const PORT = process.env.PORT || 3333;
 app.listen(PORT, () => {
   console.log(`🔥 Devil Muse listening on port ${PORT}`);
-  console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
+  console.log(`   Chaste: ${CHASTE_CHAIN.join(', ')} | Spice: ${SPICE_CHAIN.join(', ')}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
 
