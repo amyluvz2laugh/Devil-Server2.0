@@ -619,8 +619,8 @@ async function handleInvoke({ userPrompt, contextBefore, contextAfter, character
   const [characterContext, catalystIntel, wraithIntel, loreIntel] = await Promise.all([
     getCharacterContext(characterTags),
     getCatalystIntel(catalystTags),
-    getWraithrecordTags(wraithTags),
-    getLorebookTags(lorebookTags)
+    getWraithIntel(wraithTags),
+    getLoreIntel(loreTags)
   ]);
   
   let systemPrompt = `You are a dark creative writing assistant. The user wants to insert specific content at their cursor position. Make sure content flows. If user provides catalyst tags or character tags use information to progress the scene.
