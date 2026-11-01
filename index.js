@@ -30,9 +30,27 @@ const WIX_ACCOUNT_ID = process.env.WIX_ACCOUNT_ID;
 const WIX_SITE_ID = process.env.WIX_SITE_ID;
 
 // Model configuration
-const PRIMARY_MODEL = "deepseek/deepseek-v4.1-flash-1017";
-const BACKUP_MODEL = "deepseek/deepseek-v4-flash";
-const TERTIARY_MODEL = "mistralai/mistral-nemo";
+const MUSE_MODEL      = "meta/muse-spark-1.3";
+const GROK_MODEL      = "meta-llama/llama-3.1-70b-instruct";       // confirm the exact slug on OpenRouter
+const DEEPSEEK_MODEL  = "deepseek/deepseek-v3.2";
+const COMMAND_R_MODEL = "cohere/command-r-08-2024";     // confirm the exact slug on OpenRouter
+
+const CHASTE_CHAIN = [MUSE_MODEL, GROK_MODEL];
+const SPICE_CHAIN  = [DEEPSEEK_MODEL, COMMAND_R_MODEL];
+
+const TEMPTATION = [
+  { name: 'Chaste',       chain: CHASTE_CHAIN, note: 'Content: No spice needed. May still reflect characters internal dirty thoughts.' },
+  { name: 'Temptation',   chain: SPICE_CHAIN,  note: 'Intensity: a slow pull. Build tension, longing and restraint.' },
+  { name: 'Obsession',    chain: SPICE_CHAIN,  note: 'Intensity: obsessive and consuming. Let desire and fixation escalate.' },
+  { name: 'Surrender',    chain: SPICE_CHAIN,  note: 'Intensity: resistance gives way. Lean fully into the heat.' },
+  { name: 'Unrestrained', chain: SPICE_CHAIN,  note: 'Intensity: nothing held back. Follow the scene wherever it goes.' }
+];
+
+function getTemptation(level) {
+  const n = Number(level);
+  return TEMPTATION[Number.isInteger(n) && n >= 0 && n <= 4 ? n : 0];
+}
+
 
 // ============================================
 // AI CALL WITH FALLBACK + TRAINING DATA LOGGING
@@ -47,7 +65,7 @@ async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType
   
   for (const model of models) {
     try {
-      console.log(`🤖 Trying model: ${model}`);
+      console.log(`🤖 [${label}] Trying model: ${model}`);
       
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
