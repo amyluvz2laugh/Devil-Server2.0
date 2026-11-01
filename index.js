@@ -618,8 +618,8 @@ async function handleInvoke({ userPrompt, contextBefore, contextAfter, character
   // Get context from Wix
   const [characterContext, catalystIntel, wraithIntel, loreIntel] = await Promise.all([
     getCharacterContext(characterTags),
-    getCatalystIntel(catalystTags)
-    getWraithTags(wraithTags),
+    getCatalystIntel(catalystTags),
+    getWraithrecordTags(wraithTags),
     getLorebookTags(lorebookTags)
   ]);
   
