@@ -30,41 +30,24 @@ const WIX_ACCOUNT_ID = process.env.WIX_ACCOUNT_ID;
 const WIX_SITE_ID = process.env.WIX_SITE_ID;
 
 // Model configuration
-const MUSE_MODEL      = "meta/muse-spark-1.3";
-const GROK_MODEL      = "meta-llama/llama-3.1-70b-instruct";       // confirm the exact slug on OpenRouter
-const DEEPSEEK_MODEL  = "deepseek/deepseek-v3.2";
-const COMMAND_R_MODEL = "cohere/command-r-08-2024";     // confirm the exact slug on OpenRouter
-
-const CHASTE_CHAIN = [MUSE_MODEL, GROK_MODEL];
-const SPICE_CHAIN  = [DEEPSEEK_MODEL, COMMAND_R_MODEL];
-
-const TEMPTATION = [
-  { name: 'Chaste',       chain: CHASTE_CHAIN, note: 'Content: No spice needed. May still reflect characters internal dirty thoughts.' },
-  { name: 'Temptation',   chain: SPICE_CHAIN,  note: 'Intensity: a slow pull. Build tension, longing and restraint.' },
-  { name: 'Obsession',    chain: SPICE_CHAIN,  note: 'Intensity: obsessive and consuming. Let desire and fixation escalate.' },
-  { name: 'Surrender',    chain: SPICE_CHAIN,  note: 'Intensity: resistance gives way. Lean fully into the heat.' },
-  { name: 'Unrestrained', chain: SPICE_CHAIN,  note: 'Intensity: nothing held back. Follow the scene wherever it goes.' }
-];
-
-function getTemptation(level) {
-  const n = Number(level);
-  return TEMPTATION[Number.isInteger(n) && n >= 0 && n <= 4 ? n : 0];
-}
-
+const PRIMARY_MODEL = "moonshotai/kimi-k2.7-code";
+const BACKUP_MODEL = "deepseek/deepseek-v4-flash";
+const TERTIARY_MODEL = "mistralai/mistral-nemo";
 
 // ============================================
 // AI CALL WITH FALLBACK + TRAINING DATA LOGGING
 // ============================================
-async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType = null, chain = CHASTE_CHAIN) {
+async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType = null) {
+  const models = [PRIMARY_MODEL, BACKUP_MODEL, TERTIARY_MODEL];
   const apiKey = process.env.OPENROUTER_API_KEY;
   
   if (!apiKey) {
     throw new Error("No API key configured");
   }
   
-  for (const model of chain) {
+  for (const model of models) {
     try {
-      console.log(`🤖 [${buttonType || 'general'}] Trying model: ${model}`);
+      console.log(`🤖 Trying model: ${model}`);
       
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -145,7 +128,7 @@ function logTrainingData(buttonType, messages, output, model) {
   } catch (err) {
     console.error('⚠️ Training log failed (non-critical):', err);
   }
-} 
+}
 // ============================================
 // QUERY WIX CMS
 // ============================================
@@ -250,29 +233,35 @@ async function getChatHistory(characterTags) {
   return [];
 }
 
-
 // ============================================
-// GET RELATED CHAPTERS (SUMMARIES) FROM WIX
+// GET RELATED CHAPTERS FROM WIX
 // ============================================
-async function getRelatedChapters(storyId) {
-  if (!storyId) return [];
+async function getRelatedChapters(storyTags) {
+  if (!storyTags || storyTags.length === 0) {
+    return [];
+  }
+  
+  const storyTag = Array.isArray(storyTags) ? storyTags[0] : storyTags;
+  console.log("📚 Fetching chapters with tag:", storyTag);
+  
+    const result = await queryWixCMS("Chapters", {
+    storyTag: { $eq: storyTag }
+  }, 10);
 
-  const id = Array.isArray(storyId) ? storyId[0] : storyId;
-  console.log("📚 Fetching chapters for story:", id);
+  if (result.items.length > 0) {
+    console.log(`✅ Found ${result.items.length} related chapters`);
 
-  const result = await queryWixCMS("Chapters", {
-    storyTag: { $eq: id }
-  }, 20);
+    const chapters = result.items.map((item, i) => ({
+      title: `Chapter ${i + 1}`,
+      content: (item.data?.summary || "").substring(0, 800)
+    }));
 
-  if (!result?.items?.length) return [];
-
-  console.log(`✅ Found ${result.items.length} related chapters`);
-
-  return result.items.map((item, i) => ({
-    title: `Chapter ${i + 1}`,
-    content: (item.data?.summary || "").substring(0, 800)
-  }));
+    return chapters;
+  }
+  
+  return [];
 }
+
 
 // ============================================
 // GET CATALYST INTEL FROM WIX
@@ -383,7 +372,16 @@ async function getLorebookTags(loreTags) {
 }
 
 // ============================================
-// DOWNLOAD TRAINING DATA (top level, NOT inside /devil-pov)
+// UNIFIED /devil-pov ENDPOINT - ALL ACTIONS
+// ============================================
+app.post('/devil-pov', async (req, res) => {
+  try {
+    const startTime = Date.now();
+    const { action = 'devilPOV' } = req.body;
+    
+    console.log(`🎯 Action: ${action.toUpperCase()}`);
+    // ============================================
+// DOWNLOAD TRAINING DATA ENDPOINT
 // ============================================
 app.get('/download-training-data', (req, res) => {
   const fs = require('fs');
@@ -399,17 +397,7 @@ app.get('/download-training-data', (req, res) => {
     });
   }
 });
-
-// ============================================
-// UNIFIED /devil-pov ENDPOINT - ALL ACTIONS
-// ============================================
-app.post('/devil-pov', async (req, res) => {
-  try {
-    const startTime = Date.now();
-    const { action = 'devilPOV' } = req.body;
     
-    console.log(`🎯 Action: ${action.toUpperCase()}`);
-
     // ============================================
     // ROUTE TO APPROPRIATE HANDLER
     // ============================================
@@ -439,48 +427,51 @@ app.post('/devil-pov', async (req, res) => {
       case 'characterChat':
         result = await handleCharacterChat(req.body);
         break;
-
-      case 'overuse_scanner':
-        result = await handleOveruseScanner(req.body);
-        break;
-  
-      case 'pacing_analyzer':
-        result = await handlePacingAnalyzer(req.body);
-        break;
-  
-      case 'sentence_mechanics':
-        result = await handleSentenceMechanics(req.body);
-        break;
-  
-      case 'dialogue_critic':
-        result = await handleDialogueCritic(req.body);
-        break;
-  
-      case 'ai_critic':
-        result = await handleAICritic(req.body);
-        break;
-  
-      case 'structural_check':
-        result = await handleStructuralCheck(req.body);
-        break;
-
-      case 'chapter_summary':
-        result = await handleChapterSummary(req.body);
-        break;  
-
-      case 'trajectory':
-        result = await handleTrajectory(req.body);
-        break;
-     
-      case 'tag_generation':
-        result = await handleTagGeneration(req.body);
-        break;
-
+      
       case 'devilPOV':
       default:
         result = await handleDevilPOV(req.body);
         break;
+
+        case 'overuse_scanner':
+    result = await handleOveruseScanner(req.body);
+    break;
+  
+  case 'pacing_analyzer':
+    result = await handlePacingAnalyzer(req.body);
+    break;
+  
+  case 'sentence_mechanics':
+    result = await handleSentenceMechanics(req.body);
+    break;
+  
+  case 'dialogue_critic':
+    result = await handleDialogueCritic(req.body);
+    break;
+  
+  case 'ai_critic':
+    result = await handleAICritic(req.body);
+    break;
+  
+  case 'structural_check':
+    result = await handleStructuralCheck(req.body);
+    break;
+
+  case 'chapter_summary':
+     result = await handleChapterSummary(req.body);
+     break;  
+
+  case 'trajectory':
+  result = await handleTrajectory(req.body);
+  break;
+     
+  case 'tag_generation':
+  result = await handleTagGeneration(req.body);
+  break;
+  
+  // ... rest of existing cases ...
     }
+    
     
     console.log(`✅ ${action} completed in ${Date.now() - startTime}ms`);
     
@@ -497,115 +488,86 @@ app.post('/devil-pov', async (req, res) => {
       error: `${req.body.action || 'Action'} failed`,
       details: err.message 
     });
+    res.json({
+  status: 'success',
+  markers: result, // This is now the JSON array
+  processingTime: Date.now() - startTime
+});
   }
 });
 
 // ============================================
 // UNHINGE
 // ============================================
-async function handleUnhinge({ chapterContent, characterTags, temptation }) {
+async function handleUnhinge({ chapterContent }) {
   console.log("😈 Unhinging chapter...");
-
+  
   if (!chapterContent || chapterContent.trim().length === 0) {
     throw new Error("No content to unhinge");
   }
-
-  const characterContext = await getCharacterContext(characterTags);
-
-  let systemPrompt = "You are a dark, twisted muse. Your job is to take existing writing and make it DARKER, more UNHINGED, more VISCERAL. Push boundaries. Increase tension. Add psychological horror elements. Make it raw and disturbing while maintaining the core narrative. Do not add explanations or meta-commentary - ONLY return the darkened version of the text.";
-
-  if (characterContext) {
-    systemPrompt += `\n\nCHARACTER CONTEXT:\n${characterContext}\n\nYou are this character. Use their voice, thought patterns, and instincts. The darkness should come from who they are and how they think, not generic edginess. Use the context to shape how scenes are darkened, but do not invent events that aren't in the original chapter.`;
-  }
-
-  const t = getTemptation(temptation);
-  systemPrompt += `\n\n${t.note}`;
-  console.log(`🌡️ Temptation level: ${t.name}`);
-
+  
   const messages = [
-    { role: "system", content: systemPrompt },
+    {
+      role: "system",
+      content: "You are a dark, twisted muse. Your job is to take existing writing and make it DARKER, more UNHINGED, more VISCERAL. Push boundaries. Increase tension. Add psychological horror elements. Make it raw and disturbing while maintaining the core narrative. Do not add explanations or meta-commentary - ONLY return the darkened version of the text."
+    },
     {
       role: "user",
       content: `Transform this chapter into something darker and more unhinged. Maintain the plot and characters but amplify the darkness, tension, and psychological elements:\n\n${chapterContent}`
     }
   ];
-
-  return await callAI(messages, 0.9, 3000, 'unhinge', t.chain);
+  
+  return await callAI(messages, 0.9, 3000, 'unhinge'); // <--- ADD THIS
 }
+
 // ============================================
 // UNLEASH
 // ============================================
-async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags, wraithrecordTags, wraithTags, lorebookTags, loreTags, temptation }) {
+async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags }) {
   console.log("🔥 Unleashing continuation...");
-
-  // Accepts either key name from the page
-  const wraith = wraithrecordTags ?? wraithTags;
-  const lore = lorebookTags ?? loreTags;
-  console.log("🏷️ Tags received:", { wraith, lore });
-
+  
   if (!chapterContent || chapterContent.trim().length === 0) {
     throw new Error("No content to continue from");
   }
-
-  const [characterContext, catalystIntel, relatedChapters, wraithIntel, loreIntel] = await Promise.all([
+  
+  // Get context from Wix
+  const [characterContext, catalystIntel] = await Promise.all([
     getCharacterContext(characterTags),
-    getCatalystIntel(catalystTags),
-    getRelatedChapters(storyTags),   // same call Devil makes
-    getWraithRecordTags(wraith),
-    getLorebookTags(lore)
+    getCatalystIntel(catalystTags)
   ]);
-
-  const chapterSummaries = relatedChapters
-    .filter(c => c.content)
-    .map(c => `${c.title}: ${c.content}`)
-    .join("\n\n");
-
-  let systemPrompt = "You are a dark, continuation engine. Continue the chapter from where it left off. Match the tone, style, and darkness of the existing text. Write 1-4 lines per paragraphs that flow naturally from the previous content. Make it sharp and tense. If User provides tags treat them as hard constraints and obey strictly. Do NOT add any preamble or explanation - start writing immediately where the story left off.";
-
-  if (chapterSummaries) {
-    systemPrompt += `\n\nSTORY SO FAR (CHAPTER SUMMARIES):\n${chapterSummaries}`;
-  }
+  
+  let systemPrompt = "You are a dark, continuation engine. Continue the chapter from where it left off. Match the tone, style, and darkness of the existing text. Write 1-4 lines per paragraphs that flow naturally from the previous content. Make it sharp and tense.  If User provides tags treat them as hard constraints and obey strictly. Do NOT add any preamble or explanation - start writing immediately where the story left off.";
+  
   if (characterContext) {
     systemPrompt += `\n\nCHARACTER CONTEXT:\n${characterContext}`;
   }
+  
   if (catalystIntel) {
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
   }
-  if (wraithIntel) {
-    systemPrompt += `\n\nWRAITH RECORDS (LOCATIONS, RITUALS, SYMBOLS):\n${wraithIntel}`;
-  }
-  if (loreIntel) {
-    systemPrompt += `\n\nLOREBOOK (WORLD RULES):\n${loreIntel}`;
-  }
-
-  const t = getTemptation(temptation);
-  systemPrompt += `\n\n${t.note}`;
-  console.log(`🌡️ Temptation level: ${t.name}`);
-
+  
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: `Continue this story. Pick up EXACTLY where it ends and keep going:\n\n${chapterContent}` }
   ];
-
-  return await callAI(messages, 0.85, 2000, 'unleash', t.chain);
+  
+  return await callAI(messages, 0.85, 2000, 'unleash'); // <--- ADD THIS
 }
+
 // ============================================
 // NO MERCY
 // ============================================
-async function handleNoMercy({ selectedText, temptation }) {
+async function handleNoMercy({ selectedText }) {
   console.log("💀 No Mercy rewrite...");
   
   if (!selectedText || selectedText.trim().length === 0) {
     throw new Error("No text selected for rewrite");
   }
-
-  const t = getTemptation(temptation);
-  console.log(`🌡️ Temptation level: ${t.name}`);
   
   const messages = [
     {
       role: "system",
-      content: `You are a merciless editor who rewrites text to be DARKER, MORE INTENSE, and MORE VISCERAL. Show no mercy. Make every word count. Amplify emotions, darken the tone, and make the prose more powerful and disturbing. Return ONLY the rewritten text with no explanations.\n\n${t.note}`
+      content: "You are a merciless editor who rewrites text to be DARKER, MORE INTENSE, and MORE VISCERAL. Show no mercy. Make every word count. Amplify emotions, darken the tone, and make the prose more powerful and disturbing. Return ONLY the rewritten text with no explanations."
     },
     {
       role: "user",
@@ -613,26 +575,19 @@ async function handleNoMercy({ selectedText, temptation }) {
     }
   ];
   
-  return await callAI(messages, 0.9, 1500, 'noMercy', t.chain);
+  return await callAI(messages, 0.9, 1500, 'NoMercy'); // <--- ADD THIS
 }
 
 // ============================================
 // INVOKE
 // ============================================
-async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags, wraithrecordTags, wraithTags, lorebookTags, loreTags, temptation }) {
+async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags }) {
   console.log("✨ Invoke starting...");
-
-  // Accepts either key name from the page
-  const wraith = wraithrecordTags ?? wraithTags;
-  const lore = lorebookTags ?? loreTags;
-  console.log("🏷️ Tags received:", { wraith, lore });
   
   // Get context from Wix
-  const [characterContext, catalystIntel, wraithIntel, loreIntel] = await Promise.all([
+  const [characterContext, catalystIntel] = await Promise.all([
     getCharacterContext(characterTags),
-    getCatalystIntel(catalystTags),
-    getWraithRecordTags(wraith),
-    getLorebookTags(lore)
+    getCatalystIntel(catalystTags)
   ]);
   
   let systemPrompt = `You are a dark creative writing assistant. The user wants to insert specific content at their cursor position. Make sure content flows. If user provides catalyst tags or character tags use information to progress the scene.
@@ -655,43 +610,28 @@ Write ONLY what they asked for. Match the tone and style of the surrounding text
     systemPrompt += `\n\nNARRATIVE CATALYST:\n${catalystIntel}`;
   }
 
-  if (wraithIntel) {
-    systemPrompt += `\n\nWRAITH RECORDS (LOCATIONS, RITUALS, SYMBOLS):\n${wraithIntel}`;
-  }
-
-  if (loreIntel) {
-    systemPrompt += `\n\nLOREBOOK (WORLD RULES):\n${loreIntel}`;
-  }
-
-  const t = getTemptation(temptation);
-  systemPrompt += `\n\n${t.note}`;
-  console.log(`🌡️ Temptation level: ${t.name}`);
-
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt }
   ];
   
-  return await callAI(messages, 0.85, 2500, 'invoke', t.chain);
+  return await callAI(messages, 0.85, 800, 'Invoke'); // <--- ADD THIS
 }
 
 // ============================================
 // INTENSIFY
 // ============================================
-async function handleIntensify({ selectedText, temptation }) {
+async function handleIntensify({ selectedText }) {
   console.log("⚡ Intensifying text...");
   
   if (!selectedText || selectedText.trim().length === 0) {
     throw new Error("No text selected to intensify");
   }
-
-  const t = getTemptation(temptation);
-  console.log(`🌡️ Temptation level: ${t.name}`);
   
   const messages = [
     {
       role: "system",
-      content: `You are a master of prose enhancement. Take existing text and make it MORE INTENSE, MORE VIVID, MORE POWERFUL. Enhance imagery, strengthen verbs, deepen emotions, and make every sentence hit harder. Maintain the core meaning but amplify everything. Return ONLY the enhanced text.\n\n${t.note}`
+      content: "You are a master of prose enhancement. Take existing text and make it MORE INTENSE, MORE VIVID, MORE POWERFUL. Enhance imagery, strengthen verbs, deepen emotions, and make every sentence hit harder. Maintain the core meaning but amplify everything. Return ONLY the enhanced text."
     },
     {
       role: "user",
@@ -699,7 +639,7 @@ async function handleIntensify({ selectedText, temptation }) {
     }
   ];
   
-  return await callAI(messages, 0.8, 1500, 'intensify', t.chain);
+  return await callAI(messages, 0.8, 1500, 'Intensify'); // <--- ADD THIS;
 }
 
 // ============================================
@@ -838,7 +778,7 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
     { role: "user", content: userMessage }
   ];
   
-  return await callAI(messages, 0.85, 1500, 'CharacterChat');
+  return await callAI(messages, 0.85, 1500, 'CharacterChat'); // <--- ADD THIS;
 }
 // ============================================
 // DEVIL POV (Streamlined)
@@ -1525,6 +1465,6 @@ async function handleTagGeneration({ name, type }) {
 const PORT = process.env.PORT || 3333;
 app.listen(PORT, () => {
   console.log(`🔥 Devil Muse listening on port ${PORT}`);
-  console.log(`   Chaste: ${CHASTE_CHAIN.join(', ')} | Spice: ${SPICE_CHAIN.join(', ')}`);
+  console.log(`   Models: ${PRIMARY_MODEL}, ${BACKUP_MODEL}, ${TERTIARY_MODEL}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
