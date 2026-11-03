@@ -34,6 +34,9 @@ const MUSE_MODEL      = "meta/muse-spark-1.2";
 const GROK_MODEL      = "meta-llama/llama-3.1-70b-instruct";       // confirm the exact slug on OpenRouter
 const DEEPSEEK_MODEL  = "deepseek/deepseek-v3.1";
 const COMMAND_R_MODEL = "cohere/command-r-08-2024";     // confirm the exact slug on OpenRouter
+// Beat Forge gets its own model, separate from Devil. Override in Railway Variables with BEATS_MODEL.
+const BEATS_MODEL = process.env.BEATS_MODEL || DEEPSEEK_MODEL;
+const BEATS_CHAIN = [BEATS_MODEL, COMMAND_R_MODEL]; // second one is the fallback
 
 const CHASTE_CHAIN = [MUSE_MODEL, GROK_MODEL];
 const SPICE_CHAIN  = [DEEPSEEK_MODEL, COMMAND_R_MODEL];
@@ -440,7 +443,11 @@ app.post('/devil-pov', async (req, res) => {
         result = await handleCharacterChat(req.body);
         break;
 
-      case 'overuse_scanner':
+        case 'generate-beats':
+        result = await handleGenerateBeats(req.body);
+        break;
+
+       case 'overuse_scanner':
         result = await handleOveruseScanner(req.body);
         break;
   
@@ -912,6 +919,104 @@ ${toneContext}`;
   ], 0.9, 2500);
   
   return result;
+}
+
+
+// ============================================
+// BEAT FORGE (plot drives, beats, twists, cliffhangers) — own model chain
+// ============================================
+const SPICE_GUIDE = {
+  1: 'Simmer — tension only: charged glances, near-misses, restraint. Nothing physical beyond a brush of hands or a held gaze.',
+  2: 'Heat — kisses, possessive moments, charged confrontations. Intimacy fades to black.',
+  3: 'Burn — sensual scenes are on the table and drive the emotional stakes. Sensual rather than graphic.',
+  4: 'Inferno — intimacy is central to the beat and intense in intent. Describe what happens and what it changes between the characters, as planning notes, not written scenes.'
+};
+
+const TYPE_GUIDE = {
+  'beats': 'Story beats: the next sequential moments that move the narrative forward, in order.',
+  'plot-drives': 'Plot drives: the forces pushing the story engine — what characters want, what blocks them, and what escalates.',
+  'twists': 'Twists: reversals or reveals that recontextualize what the reader knows, seeded by the existing story.',
+  'cliffhangers': 'Cliffhangers: chapter-ending hooks that leave a question or threat unresolved.'
+};
+
+const BEATS_SYSTEM = `You are the Beat Forge, a story-structure engine for dark romance, mafia, and paranormal fiction. You generate narrative beats and plot drives for authors. You do not write prose scenes. You write planning notes the author will build from.
+
+Rules:
+- Continue from the story so far. Never contradict or repeat events in the chapter summaries.
+- Use the provided characters by name, and respect what their profiles establish (bloodlines, origins, secrets). Never contradict a profile.
+- Honor the selected tropes. Weave them into the plot naturally instead of name-dropping them.
+- Match the spice level exactly as described.
+- Each item is 2-4 sentences: what happens, who it involves, and what it changes.
+- If there is no story context, work from the tropes and characters alone.
+- Respond with ONLY valid JSON. No markdown fences, no commentary. Shape:
+{"beats":[{"title":"...","type":"...","description":"...","spice":1,"characters":["Name"]}]}`;
+
+function buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) {
+  const parts = [];
+  parts.push(`Generate ${count} ${outputType.replace('-', ' ')}.`);
+  parts.push(`TYPE: ${TYPE_GUIDE[outputType]}`);
+  parts.push(`SPICE LEVEL ${spice}/4 — ${SPICE_GUIDE[spice]}`);
+  parts.push(tropes.length ? `TROPES: ${tropes.join(', ')}` : 'TROPES: none selected. Choose what fits the story.');
+  if (story) parts.push(`STORY: ${story.title}`);
+  if (summaries.length) {
+    parts.push('STORY SO FAR (oldest to newest):\n' +
+      summaries.map((s, i) => `${i + 1}. ${s.title || 'Chapter'} — ${s.summary}`).join('\n'));
+  }
+  if (characters.length) {
+    parts.push('CHARACTERS:\n' + characters.map(c => `- ${c.name}: ${c.bio || 'no profile'}`).join('\n'));
+  }
+  return parts.join('\n\n');
+}
+
+function parseBeats(text) {
+  const cleaned = String(text || '').replace(/```json|```/g, '').trim();
+  const tryParse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
+  let parsed = tryParse(cleaned);
+  if (!parsed) {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start > -1 && end > start) parsed = tryParse(cleaned.slice(start, end + 1));
+  }
+  const list = parsed && (parsed.beats || parsed);
+  return Array.isArray(list) ? list.filter(b => b && (b.description || b.beat)) : [];
+}
+
+async function handleGenerateBeats(body) {
+  console.log("🩸 Beat Forge starting...");
+  const b = body || {};
+
+  const outputType = TYPE_GUIDE[b.outputType] ? b.outputType : 'beats';
+  const count = Math.min(Math.max(parseInt(b.count) || 5, 1), 10);
+  const spice = Math.min(Math.max(parseInt(b.spice) || 2, 1), 4);
+  const tropes = (Array.isArray(b.tropes) ? b.tropes : []).slice(0, 12).map(String);
+  const story = b.story && b.story.title ? { title: String(b.story.title) } : null;
+
+  const summaries = (Array.isArray(b.recentSummaries) ? b.recentSummaries : []).slice(0, 4).map(s => ({
+    title: String(s.title || '').slice(0, 120),
+    summary: String(s.summary || '').slice(0, 1200)
+  })).filter(s => s.summary);
+
+  const characters = (Array.isArray(b.characters) ? b.characters : []).slice(0, 8).map(c => ({
+    name: String(c.name || '').slice(0, 80),
+    bio: String(c.bio || '').slice(0, 800)
+  })).filter(c => c.name);
+
+  console.log(`🌡️ Beats: ${outputType} x${count}, spice ${spice}, ${tropes.length} tropes, ${summaries.length} summaries, ${characters.length} characters`);
+
+  const messages = [
+    { role: "system", content: BEATS_SYSTEM },
+    { role: "user", content: buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) }
+  ];
+
+  const raw = await callAI(messages, 0.9, 2500, 'generateBeats', BEATS_CHAIN);
+  const beats = parseBeats(raw);
+
+  if (!beats.length) {
+    console.error("❌ Beat Forge unreadable output:", String(raw).slice(0, 500));
+    throw new Error("Beat model returned unreadable output");
+  }
+
+  return beats.slice(0, count);
 }
 
 // ============================================
