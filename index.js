@@ -941,12 +941,32 @@ const TYPE_GUIDE = {
 
 const BEATS_SYSTEM = `You are the Beat Forge, a story-trajectory engine for dark romance, mafia, and paranormal fiction. You build breadcrumb outlines for a separate writing model to follow. You never write the scene itself.
 
-Every sequence has:
-1. CORE PURPOSE: 2-4 short lines. What the character accomplishes and how it should feel. Say what she does NOT do, then what she does instead, then the payoff.
-2. THREE BEATS, in order. Each beat has:
-   - title: names the move (example: "She Identifies the Target")
-   - move: 2-4 short fragment lines. What shifts in the story and the one thing that must be true by the end of the beat.
-   - dialogue: 2-3 short lines that seed the beat, formatted as Name: “line” (use curly quotes).
+OUTPUT FORMAT: plain text, exactly this layout. No JSON, no markdown, no commentary before or after. Start your reply with SEQUENCE 1.
+
+SEQUENCE 1
+CORE PURPOSE:
+(2-4 short lines. What the character accomplishes and how it should feel. Say what she does NOT do, then what she does instead, then the payoff.)
+
+BEAT 1: (a title that names the move)
+MOVE:
+(2-4 short fragment lines. What shifts in the story and the one thing that must be true by the end of the beat.)
+DIALOGUE:
+Name: “line”
+Name: “line”
+
+BEAT 2: (title)
+MOVE:
+...
+DIALOGUE:
+...
+
+BEAT 3: (title)
+MOVE:
+...
+DIALOGUE:
+...
+
+If more than one sequence is requested, repeat the whole layout as SEQUENCE 2, SEQUENCE 3. Each beat has 2-3 dialogue lines. Use curly quotes for dialogue.
 
 BREADCRUMB RULES (critical):
 - Give direction and constraints, not choreography. Say WHAT changes and WHY it matters. Never describe HOW it looks, sounds, or feels. No setting description, no sensory detail, no blow-by-blow action.
@@ -959,14 +979,39 @@ BREADCRUMB RULES (critical):
 - Respect the SPICE LEVEL in the request. It shapes the heat of the moves and dialogue, but beats stay planning notes.
 - If there is no story context, work from the tropes and characters alone.
 
-JSON SAFETY (critical):
-- Never use straight double quotes (") inside any text value. Use curly quotes “ ” for dialogue and ’ for apostrophes.
-- Never put a literal line break inside a string. Use \\n instead.
-- Your entire reply must start with { and end with }.
-Respond with ONLY valid JSON. No markdown fences, no commentary.
-
 FORMAT EXAMPLE ONLY. Do not reuse its plot or characters:
-{"sequences":[{"corePurpose":"She doesn’t attack.\\nShe removes what they were counting on, cleanly and without spectacle.\\nWhen it’s gone, they can’t even point at her.","beats":[{"title":"She Identifies the Target","move":"Not just a big deal. Time-sensitive, reputation-linked, something they need to stabilize.\\nShe learns of it before they lock it.","dialogue":["Queen: “They’re not expanding.”","Queen: “They’re anchoring. So we take the anchor.”"]},{"title":"She Reframes the Value","move":"She doesn’t outbid. She changes what the seller is choosing between.\\nNow it’s certainty, not money.","dialogue":["Queen: “Don’t make it expensive.”","Queen: “Make it obvious.”"]},{"title":"The Quiet Close","move":"No drama, no confrontation. Signatures change hands.\\nThe deal closes before they realize they’ve been edged out.","dialogue":["Seller: “They’ve already been in talks—”","Queen: “And now they’re not.”"]}]}]}`;
+
+SEQUENCE 1
+CORE PURPOSE:
+She doesn’t attack.
+She removes what they were counting on, cleanly and without spectacle.
+When it’s gone, they can’t even point at her.
+
+BEAT 1: She Identifies the Target
+MOVE:
+Not just a big deal. Time-sensitive, reputation-linked, something they need to stabilize.
+She learns of it before they lock it.
+DIALOGUE:
+Queen: “They’re not expanding.”
+Queen: “They’re anchoring. So we take the anchor.”
+
+BEAT 2: She Reframes the Value
+MOVE:
+She doesn’t outbid. She changes what the seller is choosing between.
+Now it’s certainty, not money.
+DIALOGUE:
+Queen: “Don’t make it expensive.”
+Queen: “Make it obvious.”
+
+BEAT 3: The Quiet Close
+MOVE:
+No drama, no confrontation. Signatures change hands.
+The deal closes before they realize they’ve been edged out.
+DIALOGUE:
+Seller: “They’ve already been in talks—”
+Queen: “And now they’re not.”`;
+
+
 function buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) {
   const parts = [];
   parts.push(`Generate ${count} sequence${count > 1 ? 's' : ''}. Each sequence is one core purpose plus three beats with dialogue.`);
@@ -985,27 +1030,64 @@ function buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, 
 }
 
 function parseSequences(text) {
-  const cleaned = String(text || '').replace(/```json|```/g, '').trim();
-  const tryParse = (s) => { try { return JSON.parse(s); } catch (e) { console.error('⚠️ JSON parse error:', e.message); return null; } };
-  let parsed = tryParse(cleaned);
-  if (!parsed) {
-    const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
-    if (start > -1 && end > start) parsed = tryParse(cleaned.slice(start, end + 1));
-  }
-  if (!parsed) return [];
+  const clean = String(text || '').replace(/```[a-z]*/gi, '').replace(/\*\*/g, '').trim();
+  const sequences = [];
+  let seq = null, beat = null, mode = null;
 
-  const list = Array.isArray(parsed) ? parsed : (parsed.sequences || (parsed.corePurpose ? [parsed] : []));
-  return list
-    .filter(s => s && s.corePurpose && Array.isArray(s.beats) && s.beats.length)
+  const newSeq = () => {
+    seq = { corePurpose: '', beats: [] };
+    sequences.push(seq);
+    beat = null;
+    mode = null;
+  };
+
+  for (const rawLine of clean.split(/\r?\n/)) {
+    const line = rawLine.trim().replace(/^#+\s*/, '');
+    if (!line) continue;
+
+    if (/^SEQUENCE\s*\d+/i.test(line)) { newSeq(); continue; }
+
+    const core = line.match(/^CORE PURPOSE\s*:?\s*(.*)$/i);
+    if (core) {
+      if (!seq) newSeq();
+      mode = 'core';
+      if (core[1]) seq.corePurpose += core[1] + '\n';
+      continue;
+    }
+
+    const beatMatch = line.match(/^BEAT\s*\d+\s*[:.\-–—]?\s*(.*)$/i);
+    if (beatMatch) {
+      if (!seq) newSeq();
+      beat = { title: beatMatch[1].trim(), move: '', dialogue: [] };
+      seq.beats.push(beat);
+      mode = 'move';
+      continue;
+    }
+
+    const move = line.match(/^MOVE\s*:?\s*(.*)$/i);
+    if (move && beat) {
+      mode = 'move';
+      if (move[1]) beat.move += move[1] + '\n';
+      continue;
+    }
+
+    if (/^DIALOGUE\s*:?\s*$/i.test(line)) { mode = 'dialogue'; continue; }
+
+    if (mode === 'core' && seq) seq.corePurpose += line + '\n';
+    else if (mode === 'move' && beat) beat.move += line + '\n';
+    else if (mode === 'dialogue' && beat) beat.dialogue.push(line.replace(/^[-•]\s*/, ''));
+  }
+
+  return sequences
     .map(s => ({
-      corePurpose: String(s.corePurpose),
+      corePurpose: s.corePurpose.trim(),
       beats: s.beats.slice(0, 3).map(b => ({
-        title: String(b.title || ''),
-        move: String(b.move || b.description || ''),
-        dialogue: (Array.isArray(b.dialogue) ? b.dialogue : []).slice(0, 3).map(String)
+        title: b.title,
+        move: b.move.trim(),
+        dialogue: b.dialogue.slice(0, 3)
       }))
-    }));
+    }))
+    .filter(s => s.corePurpose && s.beats.length);
 }
 
 async function handleGenerateBeats(body) {
