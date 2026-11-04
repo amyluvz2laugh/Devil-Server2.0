@@ -1089,7 +1089,7 @@ async function handleGenerateBeats(body) {
     { role: "user", content: buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) }
   ];
 
-  const raw = await callAI(messages, 0.9, 2500, 'generateBeats', BEATS_CHAIN);
+  const raw = await callAI(messages, 0.9, 4500, 'generateBeats', BEATS_CHAIN);
   const beats = parseBeats(raw);
 
   if (!beats.length) {
