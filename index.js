@@ -959,6 +959,10 @@ BREADCRUMB RULES (critical):
 - Respect the SPICE LEVEL in the request. It shapes the heat of the moves and dialogue, but beats stay planning notes.
 - If there is no story context, work from the tropes and characters alone.
 
+JSON SAFETY (critical):
+- Never use straight double quotes (") inside any text value. Use curly quotes “ ” for dialogue and ’ for apostrophes.
+- Never put a literal line break inside a string. Use \\n instead.
+- Your entire reply must start with { and end with }.
 Respond with ONLY valid JSON. No markdown fences, no commentary.
 
 FORMAT EXAMPLE ONLY. Do not reuse its plot or characters:
@@ -982,7 +986,7 @@ function buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, 
 
 function parseSequences(text) {
   const cleaned = String(text || '').replace(/```json|```/g, '').trim();
-  const tryParse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
+  const tryParse = (s) => { try { return JSON.parse(s); } catch (e) { console.error('⚠️ JSON parse error:', e.message); return null; } };
   let parsed = tryParse(cleaned);
   if (!parsed) {
     const start = cleaned.indexOf('{');
@@ -1036,8 +1040,8 @@ async function handleGenerateBeats(body) {
   const sequences = parseSequences(raw);
 
 if (!sequences.length) {
-  console.error("❌ Beat Forge unreadable output:", String(raw).slice(0, 500));
-  throw new Error("Beat model returned unreadable output");
+  console.error("❌ Beat Forge unreadable output. Length:", String(raw).length);
+console.error("TAIL:", String(raw).slice(-400));
 }
 
 return sequences.slice(0, count);
