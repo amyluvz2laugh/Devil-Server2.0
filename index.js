@@ -939,94 +939,100 @@ const TYPE_GUIDE = {
   'cliffhangers': 'The core purpose is an unresolved hook. The beats build to a chapter-ending question.'
 };
 
-const BEATS_SYSTEM = `You are the Beat Forge, a story-trajectory engine for dark romance, mafia, and paranormal fiction. You build breadcrumb outlines for a separate writing model to follow. You never write the scene itself.
+// Built from an array of lines instead of one giant template literal,
+// so nothing can end up inside it by accident.
+const BEATS_SYSTEM = [
+  'You are the Beat Forge, a story-trajectory engine for dark romance, mafia, and paranormal fiction. You build breadcrumb outlines for a separate writing model to follow. You never write the scene itself.',
+  '',
+  'OUTPUT FORMAT: plain text, exactly this layout. No JSON, no code, no markdown, no commentary before or after. Start your reply with SEQUENCE 1.',
+  '',
+  'SEQUENCE 1',
+  'CORE PURPOSE:',
+  '(2-4 short lines. What the character accomplishes and how it should feel. Say what they do NOT do, then what they do instead, then the payoff.)',
+  '',
+  'BEAT 1: (a title that names the move)',
+  'MOVE:',
+  '(2-4 short fragment lines. What shifts in the story and the one thing that must be true by the end of the beat.)',
+  'DIALOGUE:',
+  'Name: “line”',
+  'Name: “line”',
+  '',
+  'BEAT 2: (title)',
+  'MOVE:',
+  '...',
+  'DIALOGUE:',
+  '...',
+  '',
+  'BEAT 3: (title)',
+  'MOVE:',
+  '...',
+  'DIALOGUE:',
+  '...',
+  '',
+  'If more than one sequence is requested, repeat the whole layout as SEQUENCE 2, SEQUENCE 3. Each beat has 2-3 dialogue lines. Use curly quotes for dialogue.',
+  '',
+  'BREADCRUMB RULES (critical):',
+  '- Give direction and constraints, not choreography. Say WHAT changes and WHY it matters. Never describe HOW it looks, sounds, or feels. No setting description, no sensory detail, no blow-by-blow action.',
+  '- Leave gaps on purpose. The writer fills the room.',
+  '- Do not invent exact numbers, locations, or methods unless the story already established them.',
+  '- Each beat must shift or escalate from the one before. The three beats form a trajectory with a clear end state.',
+  '- Dialogue is an anchor, not a script. Never explain the plot in dialogue. Prefer implication over statement. If a line could be cut and the beat survives, cut it.',
+  '- Continue from the story so far. Never contradict or repeat events in the chapter summaries.',
+  '- Use the provided characters by name and respect their profiles. Honor the selected tropes by weaving them into the plot, not name-dropping them.',
+  '- Respect the SPICE LEVEL in the request. It shapes the heat of the moves and dialogue, but beats stay planning notes.',
+  '- If there is no story context, work from the tropes and characters alone.',
+  '',
+  'FORMAT EXAMPLE ONLY. Do not reuse its plot or characters:',
+  '',
+  'SEQUENCE 1',
+  'CORE PURPOSE:',
+  'She doesn’t attack.',
+  'She removes what they were counting on, cleanly and without spectacle.',
+  'When it’s gone, they can’t even point at her.',
+  '',
+  'BEAT 1: She Identifies the Target',
+  'MOVE:',
+  'Not just a big deal. Time-sensitive, reputation-linked, something they need to stabilize.',
+  'She learns of it before they lock it.',
+  'DIALOGUE:',
+  'Queen: “They’re not expanding.”',
+  'Queen: “They’re anchoring. So we take the anchor.”',
+  '',
+  'BEAT 2: She Reframes the Value',
+  'MOVE:',
+  'She doesn’t outbid. She changes what the seller is choosing between.',
+  'Now it’s certainty, not money.',
+  'DIALOGUE:',
+  'Queen: “Don’t make it expensive.”',
+  'Queen: “Make it obvious.”',
+  '',
+  'BEAT 3: The Quiet Close',
+  'MOVE:',
+  'No drama, no confrontation. Signatures change hands.',
+  'The deal closes before they realize they’ve been edged out.',
+  'DIALOGUE:',
+  'Seller: “They’ve already been in talks—”',
+  'Queen: “And now they’re not.”'
+].join('\n');
 
-OUTPUT FORMAT: plain text, exactly this layout. No JSON, no markdown, no commentary before or after. Start your reply with SEQUENCE 1.
-
-SEQUENCE 1
-CORE PURPOSE:
-(2-4 short lines. What the character accomplishes and how it should feel. Say what she does NOT do, then what she does instead, then the payoff.)
-
-BEAT 1: (a title that names the move)
-MOVE:
-(2-4 short fragment lines. What shifts in the story and the one thing that must be true by the end of the beat.)
-DIALOGUE:
-Name: “line”
-Name: “line”
-
-BEAT 2: (title)
-MOVE:
-...
-DIALOGUE:
-...
-
-BEAT 3: (title)
-MOVE:
-...
-DIALOGUE:
-...
-
-If more than one sequence is requested, repeat the whole layout as SEQUENCE 2, SEQUENCE 3. Each beat has 2-3 dialogue lines. Use curly quotes for dialogue.
-
-BREADCRUMB RULES (critical):
-- Give direction and constraints, not choreography. Say WHAT changes and WHY it matters. Never describe HOW it looks, sounds, or feels. No setting description, no sensory detail, no blow-by-blow action.
-- Leave gaps on purpose. The writer fills the room.
-- Do not invent exact numbers, locations, or methods unless the story already established them.
-- Each beat must shift or escalate from the one before. The three beats form a trajectory with a clear end state.
-- Dialogue is an anchor, not a script. Never explain the plot in dialogue. Prefer implication over statement. If a line could be cut and the beat survives, cut it.
-- Continue from the story so far. Never contradict or repeat events in the chapter summaries.
-- Use the provided characters by name and respect their profiles. Honor the selected tropes by weaving them into the plot, not name-dropping them.
-- Respect the SPICE LEVEL in the request. It shapes the heat of the moves and dialogue, but beats stay planning notes.
-- If there is no story context, work from the tropes and characters alone.
-
-FORMAT EXAMPLE ONLY. Do not reuse its plot or characters:
-
-SEQUENCE 1
-CORE PURPOSE:
-She doesn’t attack.
-She removes what they were counting on, cleanly and without spectacle.
-When it’s gone, they can’t even point at her.
-
-BEAT 1: She Identifies the Target
-MOVE:
-Not just a big deal. Time-sensitive, reputation-linked, something they need to stabilize.
-She learns of it before they lock it.
-DIALOGUE:
-Queen: “They’re not expanding.”
-Queen: “They’re anchoring. So we take the anchor.”
-
-BEAT 2: She Reframes the Value
-MOVE:
-She doesn’t outbid. She changes what the seller is choosing between.
-Now it’s certainty, not money.
-DIALOGUE:
-Queen: “Don’t make it expensive.”
-Queen: “Make it obvious.”
-
-BEAT 3: The Quiet Close
-MOVE:
-No drama, no confrontation. Signatures change hands.
-The deal closes before they realize they’ve been edged out.
-DIALOGUE:
-Seller: “They’ve already been in talks—”
-Queen: “And now they’re not.”`;
 function buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) {
   const parts = [];
-  parts.push(`Generate ${count} sequence${count > 1 ? 's' : ''}. Each sequence is one core purpose plus three beats with dialogue.`);
-  parts.push(`TYPE: ${TYPE_GUIDE[outputType]}`);
-  parts.push(`SPICE LEVEL ${spice}/4 — ${SPICE_GUIDE[spice]}`);
-  parts.push(tropes.length ? `TROPES: ${tropes.join(', ')}` : 'TROPES: none selected. Choose what fits the story.');
-  if (story) parts.push(`STORY: ${story.title}`);
+  parts.push('Generate ' + count + ' sequence' + (count > 1 ? 's' : '') + '. Each sequence is one core purpose plus three beats with dialogue.');
+  parts.push('TYPE: ' + TYPE_GUIDE[outputType]);
+  parts.push('SPICE LEVEL ' + spice + '/4 — ' + SPICE_GUIDE[spice]);
+  parts.push(tropes.length ? 'TROPES: ' + tropes.join(', ') : 'TROPES: none selected. Choose what fits the story.');
+  if (story) parts.push('STORY: ' + story.title);
   if (summaries.length) {
     parts.push('STORY SO FAR (oldest to newest):\n' +
-      summaries.map((s, i) => `${i + 1}. ${s.title || 'Chapter'} — ${s.summary}`).join('\n'));
+      summaries.map((s, i) => (i + 1) + '. ' + (s.title || 'Chapter') + ' — ' + s.summary).join('\n'));
   }
   if (characters.length) {
-    parts.push('CHARACTERS:\n' + characters.map(c => `- ${c.name}: ${c.bio || 'no profile'}`).join('\n'));
+    parts.push('CHARACTERS:\n' + characters.map(c => '- ' + c.name + ': ' + (c.bio || 'no profile')).join('\n'));
   }
   return parts.join('\n\n');
 }
 
+// Reads plain text: SEQUENCE / CORE PURPOSE / BEAT n: title / MOVE / DIALOGUE
 function parseSequences(text) {
   const clean = String(text || '').replace(/```[a-z]*/gi, '').replace(/\*\*/g, '').trim();
   const sequences = [];
@@ -1089,11 +1095,10 @@ function parseSequences(text) {
 }
 
 async function handleGenerateBeats(body) {
-  console.log("🩸 Beat Forge starting...");
+  console.log('🩸 Beat Forge starting...');
   const b = body || {};
 
   const outputType = TYPE_GUIDE[b.outputType] ? b.outputType : 'beats';
-  // count is now "how many sequences", capped at 3 (was 1-10)
   const count = Math.min(Math.max(parseInt(b.count) || 1, 1), 3);
   const spice = Math.min(Math.max(parseInt(b.spice) || 2, 1), 4);
   const tropes = (Array.isArray(b.tropes) ? b.tropes : []).slice(0, 12).map(String);
@@ -1109,76 +1114,27 @@ async function handleGenerateBeats(body) {
     bio: String(c.bio || '').slice(0, 800)
   })).filter(c => c.name);
 
-  console.log(`🌡️ Beats: ${outputType} x${count}, spice ${spice}, ${tropes.length} tropes, ${summaries.length} summaries, ${characters.length} characters`);
+  console.log('🌡️ Beats: ' + outputType + ' x' + count + ', spice ' + spice + ', ' + tropes.length + ' tropes, ' + summaries.length + ' summaries, ' + characters.length + ' characters');
 
   const messages = [
-    { role: "system", content: BEATS_SYSTEM },
-    { role: "user", content: buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) }
+    { role: 'system', content: BEATS_SYSTEM },
+    { role: 'user', content: buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) }
   ];
 
-  const raw = await callAI(messages, 0.9, 3000, 'generateBeats', BEATS_CHAIN);
-  const sequences = parseSequences(raw);
+  const raw = await callAI(messages, 0.9, 4000, 'generateBeats', BEATS_CHAIN);
+  console.log('🩸 RAW reply (' + String(raw).length + ' chars):\n' + String(raw).slice(0, 2500));
 
-if (!sequences.length) {
-  console.error("❌ Beat Forge unreadable output. Length:", String(raw).length);
-console.error("TAIL:", String(raw).slice(-400));
-}
+  let sequences = parseSequences(raw);
 
-return sequences.slice(0, count);
-
-}
-
-
-function parseBeats(text) {
-  const cleaned = String(text || '').replace(/```json|```/g, '').trim();
-  const tryParse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
-  let parsed = tryParse(cleaned);
-  if (!parsed) {
-    const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
-    if (start > -1 && end > start) parsed = tryParse(cleaned.slice(start, end + 1));
-  }
-  const list = parsed && (parsed.beats || parsed);
-  return Array.isArray(list) ? list.filter(b => b && (b.description || b.beat)) : [];
-}
-
-async function handleGenerateBeats(body) {
-  console.log("🩸 Beat Forge starting...");
-  const b = body || {};
-
-  const outputType = TYPE_GUIDE[b.outputType] ? b.outputType : 'beats';
-  const count = Math.min(Math.max(parseInt(b.count) || 5, 1), 10);
-  const spice = Math.min(Math.max(parseInt(b.spice) || 2, 1), 4);
-  const tropes = (Array.isArray(b.tropes) ? b.tropes : []).slice(0, 12).map(String);
-  const story = b.story && b.story.title ? { title: String(b.story.title) } : null;
-
-  const summaries = (Array.isArray(b.recentSummaries) ? b.recentSummaries : []).slice(0, 4).map(s => ({
-    title: String(s.title || '').slice(0, 120),
-    summary: String(s.summary || '').slice(0, 1200)
-  })).filter(s => s.summary);
-
-  const characters = (Array.isArray(b.characters) ? b.characters : []).slice(0, 8).map(c => ({
-    name: String(c.name || '').slice(0, 80),
-    bio: String(c.bio || '').slice(0, 800)
-  })).filter(c => c.name);
-
-  console.log(`🌡️ Beats: ${outputType} x${count}, spice ${spice}, ${tropes.length} tropes, ${summaries.length} summaries, ${characters.length} characters`);
-
-  const messages = [
-    { role: "system", content: BEATS_SYSTEM },
-    { role: "user", content: buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) }
-  ];
-
-  const raw = await callAI(messages, 0.9, 4500, 'generateBeats', BEATS_CHAIN);
-  const beats = parseBeats(raw);
-
-  if (!beats.length) {
-   console.error("❌ Beat Forge unreadable output. Length:", String(raw).length);
-   console.error("TAIL:", String(raw).slice(-400));
-    throw new Error("Beat model returned unreadable output");
+  // Never throw on a parse miss. Show the raw reply in the panel instead.
+  if (!sequences.length) {
+    sequences = [{
+      corePurpose: 'RAW REPLY (could not be split into beats)',
+      beats: [{ title: 'Model reply', move: String(raw).trim() || '(empty reply)', dialogue: [] }]
+    }];
   }
 
-  return beats.slice(0, count);
+  return sequences.slice(0, count);
 }
 
 // ============================================
