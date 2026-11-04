@@ -1010,8 +1010,6 @@ The deal closes before they realize they’ve been edged out.
 DIALOGUE:
 Seller: “They’ve already been in talks—”
 Queen: “And now they’re not.”`;
-
-
 function buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) {
   const parts = [];
   parts.push(`Generate ${count} sequence${count > 1 ? 's' : ''}. Each sequence is one core purpose plus three beats with dialogue.`);
