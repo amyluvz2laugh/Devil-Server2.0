@@ -1093,7 +1093,8 @@ async function handleGenerateBeats(body) {
   const beats = parseBeats(raw);
 
   if (!beats.length) {
-    console.error("❌ Beat Forge unreadable output:", String(raw).slice(0, 500));
+   console.error("❌ Beat Forge unreadable output. Length:", String(raw).length);
+   console.error("TAIL:", String(raw).slice(-400));
     throw new Error("Beat model returned unreadable output");
   }
 
