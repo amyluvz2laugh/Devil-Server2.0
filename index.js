@@ -32,10 +32,10 @@ const WIX_SITE_ID = process.env.WIX_SITE_ID;
 // Model configuration
 const MUSE_MODEL      = "meta/muse-spark-1.2";
 const GROK_MODEL      = "meta-llama/llama-3.1-70b-instruct";       // confirm the exact slug on OpenRouter
-const DEEPSEEK_MODEL  = "deepseek/deepseek-v3.1";
+const DEEPSEEK_MODEL  = "moonshotai/kimi-k2.7-code";
 const COMMAND_R_MODEL = "cohere/command-r-08-2024";     // confirm the exact slug on OpenRouter
 // Beat Forge gets its own model, separate from Devil. Override in Railway Variables with BEATS_MODEL.
-const BEATS_MODEL = process.env.BEATS_MODEL || 'deepseek/deepseek-v4-pro';
+const BEATS_MODEL = process.env.BEATS_MODEL || 'moonshotai/kimi-k2.7-code';
 const BEATS_CHAIN = [BEATS_MODEL, 'xiaomi/mimo-v2.6-pro']; // second one is the fallback
 
 // Character Chat gets its own model. Override in Railway Variables with CHAT_MODEL.
