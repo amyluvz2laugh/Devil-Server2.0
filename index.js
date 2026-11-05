@@ -38,6 +38,11 @@ const COMMAND_R_MODEL = "cohere/command-r-08-2024";     // confirm the exact slu
 const BEATS_MODEL = process.env.BEATS_MODEL || 'deepseek/deepseek-v4-pro';
 const BEATS_CHAIN = [BEATS_MODEL, 'xiaomi/mimo-v2.6-pro']; // second one is the fallback
 
+// Character Chat gets its own model. Override in Railway Variables with CHAT_MODEL.
+const CHAT_MODEL = process.env.CHAT_MODEL || 'deepseek/deepseek-v3.1';   // swap in whatever you want as primary
+const CHAT_CHAIN = [CHAT_MODEL, 'deepseek/deepseek-v3.1-terminus'];              // second one is the fallback
+
+
 const CHASTE_CHAIN = [MUSE_MODEL, GROK_MODEL];
 const SPICE_CHAIN  = [DEEPSEEK_MODEL, COMMAND_R_MODEL];
 
@@ -845,7 +850,7 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
     { role: "user", content: userMessage }
   ];
   
-  return await callAI(messages, 0.85, 1500, 'CharacterChat');
+  return await callAI(messages, 0.85, 1500, 'CharacterChat', CHAT_CHAIN);
 }
 // ============================================
 // DEVIL POV (Streamlined)
