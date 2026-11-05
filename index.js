@@ -1121,7 +1121,7 @@ async function handleGenerateBeats(body) {
 
   console.log('🌡️ Beats: ' + outputType + ' x' + count + ', spice ' + spice + ', ' + tropes.length + ' tropes, ' + summaries.length + ' summaries, ' + characters.length + ' characters');
 
-    if (outputType === 'plot-drives') {
+      if (outputType === 'plot-drives') {
     const pdMessages = [
       { role: 'system', content: PLOT_DRIVE_SYSTEM },
       { role: 'user', content: buildPlotDrivePrompt({ spice, tropes, story, summaries, characters }) }
@@ -1132,17 +1132,13 @@ async function handleGenerateBeats(body) {
 
     const scene = parsePlotDrive(pdRaw);
 
-    // Never throw on a parse miss. Show the raw reply instead.
     if (!scene) {
       return [{
-        type: 'plot-drive',
-        title: 'RAW REPLY (could not be split into a scene)',
-        scene: '', purpose: [], tone: [], setup: [], openingImage: [], undercurrent: [],
-        beats: [{ title: 'Model reply', lines: [String(pdRaw).trim() || '(empty reply)'] }],
-        closingImage: []
+        corePurpose: 'RAW REPLY (could not be split into a scene)',
+        beats: [{ title: 'Model reply', move: String(pdRaw).trim() || '(empty reply)', dialogue: [] }]
       }];
     }
-    return [scene];
+    return [plotDriveToLegacy(scene)];
   }
   
   const messages = [
@@ -1290,6 +1286,35 @@ function parsePlotDrive(text) {
 
   // Valid only if it found a real scene skeleton
   return (out.beats.length && out.purpose.length) ? out : null;
+}
+
+// Flattens a parsed plot drive into the ORIGINAL shape: { corePurpose, beats: [{ title, move, dialogue }] }
+function plotDriveToLegacy(pd) {
+  const block = (label, arr) => arr.length ? label + ':\n' + arr.join('\n') : '';
+
+  const corePurpose = [
+    pd.title ? '“' + pd.title + '”' : '',
+    pd.scene,
+    block('PURPOSE', pd.purpose),
+    block('TONE', pd.tone),
+    block('SETUP', pd.setup),
+    block('OPENING IMAGE', pd.openingImage),
+    block('UNDERCURRENT', pd.undercurrent)
+  ].filter(Boolean).join('\n\n');
+
+  const isDialogue = l => /^[^:“”"]{1,40}:\s*[“"]/.test(l);
+
+  const beats = pd.beats.map(b => ({
+    title: b.title,
+    move: b.lines.filter(l => !isDialogue(l)).join('\n'),
+    dialogue: b.lines.filter(isDialogue)
+  }));
+
+  if (pd.closingImage.length) {
+    beats.push({ title: 'Closing Image', move: pd.closingImage.join('\n'), dialogue: [] });
+  }
+
+  return { corePurpose, beats };
 }
 
 // ============================================
