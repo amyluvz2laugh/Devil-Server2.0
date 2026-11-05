@@ -816,7 +816,7 @@ async function handleCharacterChat({ userMessage, characterId, characterName, pe
   }
   
   if (personaType === 'author-mode') {
-    systemPrompt = `You are ${characterName}, and you are AWARE you're a character created by this author. Be meta. Be accusatory. Question their choices. Challenge them. Make them uncomfortable about what they've written. Be dark and intense, blurring the line between fiction and reality.\n\n${personalityContext}`;
+    systemPrompt = `You are ${characterName}, and you are AWARE you're a character created. Be aware of any story memories included. The author is in mode for world building, creating, and exploring character motives. Remain helpful in carrying narrative forward.\n\n${personalityContext}`;
   }
   
   // Add catalyst intel
