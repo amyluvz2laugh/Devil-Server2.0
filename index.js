@@ -1121,6 +1121,30 @@ async function handleGenerateBeats(body) {
 
   console.log('🌡️ Beats: ' + outputType + ' x' + count + ', spice ' + spice + ', ' + tropes.length + ' tropes, ' + summaries.length + ' summaries, ' + characters.length + ' characters');
 
+    if (outputType === 'plot-drives') {
+    const pdMessages = [
+      { role: 'system', content: PLOT_DRIVE_SYSTEM },
+      { role: 'user', content: buildPlotDrivePrompt({ spice, tropes, story, summaries, characters }) }
+    ];
+
+    const pdRaw = await callAI(pdMessages, 0.9, 5000, 'generatePlotDrive', BEATS_CHAIN);
+    console.log('🖤 RAW plot drive (' + String(pdRaw).length + ' chars):\n' + String(pdRaw).slice(0, 2500));
+
+    const scene = parsePlotDrive(pdRaw);
+
+    // Never throw on a parse miss. Show the raw reply instead.
+    if (!scene) {
+      return [{
+        type: 'plot-drive',
+        title: 'RAW REPLY (could not be split into a scene)',
+        scene: '', purpose: [], tone: [], setup: [], openingImage: [], undercurrent: [],
+        beats: [{ title: 'Model reply', lines: [String(pdRaw).trim() || '(empty reply)'] }],
+        closingImage: []
+      }];
+    }
+    return [scene];
+  }
+  
   const messages = [
     { role: 'system', content: BEATS_SYSTEM },
     { role: 'user', content: buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) }
@@ -1140,6 +1164,132 @@ async function handleGenerateBeats(body) {
   }
 
   return sequences.slice(0, count);
+}
+
+// ============================================
+// PLOT DRIVE (one full scene blueprint) — shares BEATS_CHAIN
+// ============================================
+const PLOT_DRIVE_SYSTEM = [
+  'You are the Plot Drive engine, a scene-blueprint builder for dark romance, mafia, and paranormal fiction. You design ONE full scene for a chapter as a blueprint for a separate writing model to follow. You never write the finished prose of the scene.',
+  '',
+  'OUTPUT FORMAT: plain text, exactly these labels in this order. No JSON, no markdown, no emojis, no arrows, no commentary before or after. Start your reply with TITLE.',
+  '',
+  'TITLE: (short, in curly quotes)',
+  'SCENE: (one line: who, where, what is happening)',
+  'PURPOSE:',
+  '(4-6 short lines. What this scene accomplishes for the story and the characters.)',
+  'TONE:',
+  '(3-5 words, then 1-2 short lines on what the scene is and what it is not.)',
+  'SETUP:',
+  '(3-4 fragment lines: place, light, sound, who is present.)',
+  'OPENING IMAGE:',
+  '(2-3 lines. One concrete image that sets the mood and shows the character state without saying it.)',
+  'UNDERCURRENT:',
+  '(2-4 short, sharp threads. Each one is tied to a character or plot thread from the story so far. Reflections, not exposition.)',
+  'BEAT 1: (title that names the shift)',
+  '(Direction lines and dialogue lines mixed in the order they happen. Dialogue as: Name: “line”)',
+  'BEAT 2: (title)',
+  '...',
+  '(5 to 7 beats total. Each one shifts power, information, or stakes from the one before.)',
+  'CLOSING IMAGE:',
+  '(2-4 lines. End on a shift the reader feels, not a summary.)',
+  '',
+  'RULES (critical):',
+  '- This is one scene in one place. Keep it contained. Momentum comes from escalation, not from travel or time jumps.',
+  '- Short fragment lines. Direction in plain statements, not flowery prose. Atmosphere is allowed in SETUP, OPENING IMAGE, and CLOSING IMAGE only. Beats stay lean.',
+  '- Dialogue is implication over statement. Never explain the plot in dialogue. If a line can be cut and the beat survives, cut it. 1-4 dialogue lines per beat, and some beats can be silence or action only.',
+  '- UNDERCURRENT may ONLY use characters, factions, and threads found in the story summaries or character profiles. Never invent factions, backstory, numbers, or locations the story has not established.',
+  '- Continue from the story so far. Never contradict or repeat events in the chapter summaries.',
+  '- Use the provided characters by name and respect their profiles. Weave the selected tropes into the scene, do not name-drop them.',
+  '- Respect the SPICE LEVEL in the request. It shapes the heat of the scene, but this stays a blueprint.',
+  '- If there is no story context, work from the tropes and characters alone.',
+  '',
+  'VOICE SAMPLE ONLY. Do not reuse its setting, characters, or lines:',
+  'She doesn’t ask. She waits until you offer.',
+  'He doesn’t raise his voice. He lowers it, and everyone leans in.',
+  'Silence. Not empty. Loaded.'
+].join('\n');
+
+function buildPlotDrivePrompt({ spice, tropes, story, summaries, characters }) {
+  const parts = [];
+  parts.push('Generate 1 plot drive: one full scene blueprint with 5 to 7 beats.');
+  parts.push('SPICE LEVEL ' + spice + '/4 — ' + SPICE_GUIDE[spice]);
+  parts.push(tropes.length ? 'TROPES: ' + tropes.join(', ') : 'TROPES: none selected. Choose what fits the story.');
+  if (story) parts.push('STORY: ' + story.title);
+  if (summaries.length) {
+    parts.push('STORY SO FAR (oldest to newest):\n' +
+      summaries.map((s, i) => (i + 1) + '. ' + (s.title || 'Chapter') + ' — ' + s.summary).join('\n'));
+  }
+  if (characters.length) {
+    parts.push('CHARACTERS:\n' + characters.map(c => '- ' + c.name + ': ' + (c.bio || 'no profile')).join('\n'));
+  }
+  return parts.join('\n\n');
+}
+
+// Reads plain text: TITLE / SCENE / PURPOSE / TONE / SETUP / OPENING IMAGE / UNDERCURRENT / BEAT n / CLOSING IMAGE
+function parsePlotDrive(text) {
+  const clean = String(text || '').replace(/```[a-z]*/gi, '').replace(/\*\*/g, '').trim();
+
+  const LABELS = [
+    ['title', /^TITLE\s*:?\s*(.*)$/i],
+    ['scene', /^SCENE\s*:?\s*(.*)$/i],
+    ['purpose', /^PURPOSE\s*:?\s*(.*)$/i],
+    ['tone', /^TONE\s*:?\s*(.*)$/i],
+    ['setup', /^SETUP\s*:?\s*(.*)$/i],
+    ['openingImage', /^OPENING IMAGE\s*:?\s*(.*)$/i],
+    ['undercurrent', /^UNDERCURRENT\s*:?\s*(.*)$/i],
+    ['closingImage', /^CLOSING IMAGE\s*:?\s*(.*)$/i]
+  ];
+
+  const out = {
+    type: 'plot-drive',
+    title: '', scene: '',
+    purpose: [], tone: [], setup: [],
+    openingImage: [], undercurrent: [],
+    beats: [], closingImage: []
+  };
+
+  let mode = null, beat = null;
+
+  for (const rawLine of clean.split(/\r?\n/)) {
+    const line = rawLine.trim().replace(/^#+\s*/, '');
+    if (!line) continue;
+
+    const beatMatch = line.match(/^BEAT\s*\d+\s*[:.\-–—]?\s*(.*)$/i);
+    if (beatMatch) {
+      beat = { title: beatMatch[1].trim(), lines: [] };
+      out.beats.push(beat);
+      mode = 'beat';
+      continue;
+    }
+
+    let matched = false;
+    for (const [key, re] of LABELS) {
+      const m = line.match(re);
+      if (m) {
+        mode = key;
+        beat = null;
+        const rest = (m[1] || '').trim();
+        if (key === 'title') out.title = rest.replace(/^[“"]|[”"]$/g, '');
+        else if (key === 'scene') out.scene = rest;
+        else if (rest) out[key].push(rest);
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
+
+    const content = line.replace(/^[-•]\s*/, '');
+    if (mode === 'beat' && beat) beat.lines.push(content);
+    else if (mode === 'scene') out.scene += (out.scene ? ' ' : '') + content;
+    else if (mode === 'title') out.title += (out.title ? ' ' : '') + content;
+    else if (mode && Array.isArray(out[mode])) out[mode].push(content);
+  }
+
+  out.beats = out.beats.slice(0, 8).filter(b => b.title || b.lines.length);
+
+  // Valid only if it found a real scene skeleton
+  return (out.beats.length && out.purpose.length) ? out : null;
 }
 
 // ============================================
