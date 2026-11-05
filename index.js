@@ -940,7 +940,7 @@ const SPICE_GUIDE = {
 const TYPE_GUIDE = {
   'beats': 'A sequence of the next three moves that carry the story forward.',
   'plot-drives': 'The core purpose is a force or goal driving the plot. The three beats escalate it.',
-  'twists': 'The core purpose is a reversal. The beats are the seed, the turn, and the fallout.',
+  'twists': 'The next three moves, where the character does something the reader does not expect. Beat 1 sets the expected path. Beat 2 is the turn: the character acts against what their pattern, role, or the story so far says they would do. Beat 3 is the fallout: how the others react and what the choice costs or changes. The twist must be earned by the story so far, surprising but never random. CORE PURPOSE names the unexpected act and why it lands.',
   'cliffhangers': 'The core purpose is an unresolved hook. The beats build to a chapter-ending question.'
 };
 
