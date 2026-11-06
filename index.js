@@ -1109,7 +1109,7 @@ async function handleGenerateBeats(body) {
   const tropes = (Array.isArray(b.tropes) ? b.tropes : []).slice(0, 12).map(String);
   const story = b.story && b.story.title ? { title: String(b.story.title) } : null;
 
-  const summaries = (Array.isArray(b.recentSummaries) ? b.recentSummaries : []).slice(0, 4).map(s => ({
+  const summaries = (Array.isArray(b.recentSummaries) ? b.recentSummaries : []).slice(0, 10).map(s => ({
     title: String(s.title || '').slice(0, 120),
     summary: String(s.summary || '').slice(0, 1200)
   })).filter(s => s.summary);
