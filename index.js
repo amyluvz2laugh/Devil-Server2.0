@@ -684,7 +684,7 @@ Write ONLY what they asked for. Match the tone and style of the surrounding text
     { role: "user", content: userPrompt }
   ];
   
-  return await callAI(messages, 0.85, 3500, 'invoke', t.chain);
+  return await callAI(messages, 0.85, 5500, 'invoke', t.chain);
 }
 
 // ============================================
