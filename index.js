@@ -479,6 +479,10 @@ app.post('/devil-pov', async (req, res) => {
       case 'chapter_summary':
         result = await handleChapterSummary(req.body);
         break;  
+        
+      case 'consolidate_summaries':
+        result = await handleConsolidateSummaries(req.body);
+        break;
 
       case 'trajectory':
         result = await handleTrajectory(req.body);
@@ -1822,46 +1826,158 @@ no extra keys.`
   }
 }
 
-// ============================================
-// CHAPTER SUMMARY (triggered by a tiny Wix afterInsert hook)
-// Paste below your other handlers in index.js. Reuses your existing
-// callClaudeForAnalysis() and WIX_API_KEY / WIX_ACCOUNT_ID / WIX_SITE_ID.
-// ============================================
-async function handleChapterSummary({ chapterId }) {
+async function handleChapterSummary({ chapterId, storyId }) {
   console.log(`📝 Generating summary for chapter ${chapterId}...`);
- 
+
   if (!chapterId) throw new Error("chapterId required");
- 
+
   const found = await queryWixCMS("BackupChapters", { _id: { $eq: chapterId } }, 1);
   if (found.items.length === 0) throw new Error("Chapter not found in BackupChapters");
- 
+
   const chapter = found.items[0].data;
   const text = chapter.chapterContent || "";
   if (text.trim().length === 0) throw new Error("Chapter has no content yet");
- 
+
+  // ---- NEW: earlier summaries for context. If anything fails, we skip it
+  // and behave exactly like before. ----
+
+  let earlierSummaries = "";
+  let earlierCount = 0;
+  try {
+    const cutoff = toTime(chapter._createdDate);
+    if (storyId && cutoff) {
+      const sums = await queryWixCMS("Chapters", { story: { $eq: storyId } }, 100);
+      const earlier = sums.items
+        .map(it => ({
+          chapterRef: it.data?.chapters,
+          created: toTime(it.data?._createdDate),
+          summary: (it.data?.summary || "").trim()
+        }))
+        .filter(r => r.summary && r.chapterRef !== chapterId && r.created && r.created < cutoff)
+        .sort((a, b) => a.created - b.created);
+
+      earlierCount = earlier.length;
+      earlierSummaries = earlier.map(r => r.summary).join("\n\n---\n\n");
+    }
+  } catch (e) {
+    console.error("⚠️ Couldn't load earlier summaries, continuing without:", e.message);
+  }
+
+  console.log(`   Earlier summaries loaded: ${earlierCount}`);
+
+  const earlierBlock = earlierSummaries
+    ? `
+EARLIER CHAPTERS (already established, for reference only):
+${earlierSummaries}
+
+Rules for using the earlier chapters:
+- Never repeat anything already established above. SUMMARY covers only what THIS chapter adds.
+- FORESHADOWING lists only new plants. If an earlier plant escalates or pays off here, say so in a few words.
+- Only treat a character as new if they don't appear in the earlier chapters.
+`
+    : "";
+
   const messages = [
     {
       role: "user",
       content: `You are creating a compact intel brief on one chapter of a novel manuscript. This brief will be read by an AI co-author who needs the essential story intel without re-reading the chapter, so be dense and specific. No fluff, no filler.
-
+${earlierBlock}
 Return these labeled sections:
 POV: Character name narrator.
 Tense: Present tense, past tense, etc.
-Chapter Number: Number of the chapter. 
+Chapter Number: ${chapter.chapterNumber ?? "Number of the chapter."}
 SUMMARY: 1-3 lines. Key events and any shift in character dynamics. Notate how characters react, specific dialogue lines. 
 FORESHADOWING: 1-2 lines. Planted hints, ominous details, or setups likely to pay off later.
-Feel free to have personality. 
+Feel free to have personality.
 
 Chapter title: ${chapter.title || "Untitled"}
- 
+
 Chapter text:
 ${text}`
     }
   ];
- 
+
   const summary = (await callClaudeForAnalysis(messages, 400)).trim();
   console.log(`✅ Summary generated for chapter ${chapterId}`);
   return summary;
+}
+
+
+
+// ============================================
+// CONSOLIDATE SUMMARIES (read-only: reads Wix, returns text, writes nothing)
+// ============================================
+const KEEP_LATEST = 1;             // newest N summaries are never touched
+const MIN_CHARS_TO_CONDENSE = 450; // shorter than this = already short, leave alone
+const BATCH_SIZE = 10;             // oldest N eligible summaries per click
+
+function toTime(v) {
+  const t = new Date(v?.$date || v || 0).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
+async function handleConsolidateSummaries({ storyId }) {
+  if (!storyId) throw new Error("storyId required");
+
+  const result = await queryWixCMS("Chapters", { story: { $eq: storyId } }, 100);
+  const rows = result.items
+    .map(it => ({
+      id: it.id || it.data?._id,
+      created: toTime(it.data?._createdDate),
+      summary: (it.data?.summary || "").trim()
+    }))
+    .filter(r => r.id && r.summary)
+    .sort((a, b) => a.created - b.created);   // oldest -> newest
+
+  if (rows.some(r => !r.created)) console.warn("⚠️ Some summaries have no created date, order may be off");
+
+  const eligible = rows
+    .slice(0, Math.max(0, rows.length - KEEP_LATEST))
+    .filter(r => r.summary.length >= MIN_CHARS_TO_CONDENSE);
+  const batch = eligible.slice(0, BATCH_SIZE);
+
+  if (batch.length === 0) return { items: [], remaining: 0, note: "Nothing to condense yet." };
+
+  // Backup of the originals in the Railway log, in case a run goes sideways
+  console.log("🗂️ ORIGINAL SUMMARIES (backup):", JSON.stringify(batch.map(r => ({ id: r.id, summary: r.summary }))));
+
+  const messages = [{
+    role: "user",
+    content: `You are condensing older chapter summaries of a novel so an AI co-author keeps the whole story in view without being overloaded.
+
+Below are ${batch.length} summaries, oldest first. Rewrite each one shorter:
+- Keep the header lines (POV, Tense, Chapter Number) exactly as they are.
+- SUMMARY: 1-2 lines. Keep the events that matter later, who knows what, and key character shifts. Drop blow-by-blow detail.
+- FORESHADOWING: 1 line. Keep plants that are still unresolved or will matter later.
+- Keep every concrete fact: names, vows, reveals, relationships, rules, and anything that reads like it was added by the author. When in doubt, keep it.
+- Do not invent anything, merge chapters, or add commentary.
+
+Return ONLY a JSON array in the same order, one object per summary, using the exact ids given:
+[{"id":"...","summary":"..."}]
+
+SUMMARIES:
+${batch.map(r => `ID: ${r.id}\n${r.summary}`).join("\n\n---\n\n")}`
+  }];
+
+  const raw = (await callClaudeForAnalysis(messages, 2500)).trim();
+  const clean = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+
+  let parsed;
+  try { parsed = JSON.parse(clean); }
+  catch (e) { throw new Error("Claude didn't return valid JSON, nothing was changed"); }
+
+  const originals = new Map(batch.map(r => [r.id, r.summary]));
+  const items = (Array.isArray(parsed) ? parsed : []).filter(p =>
+    p && originals.has(p.id) && typeof p.summary === "string" &&
+    p.summary.trim() && p.summary.trim().length < originals.get(p.id).length
+  ).map(p => ({ id: p.id, summary: p.summary.trim() }));
+
+  if (items.length !== batch.length) {
+    throw new Error(`Expected ${batch.length} condensed summaries, got ${items.length}. Nothing was changed`);
+  }
+
+  console.log(`✅ Condensed ${items.length} summaries`);
+  return { items, remaining: eligible.length - batch.length };
 }
  
 // ============================================
