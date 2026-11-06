@@ -32,7 +32,7 @@ const WIX_SITE_ID = process.env.WIX_SITE_ID;
 // Model configuration
 const MUSE_MODEL      = "meta/muse-spark-1.2";
 const GROK_MODEL      = "meta-llama/llama-3.1-70b-instruct";       // confirm the exact slug on OpenRouter
-const DEEPSEEK_MODEL  = "nvidia/nemotron-3-ultra-550b-a55b";
+const DEEPSEEK_MODEL  = "meta/muse-spark-1.2";
 const COMMAND_R_MODEL = "cohere/command-r-08-2024";     // confirm the exact slug on OpenRouter
 // Beat Forge gets its own model, separate from Devil. Override in Railway Variables with BEATS_MODEL.
 const BEATS_MODEL = process.env.BEATS_MODEL || 'moonshotai/kimi-k2-thinking';
