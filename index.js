@@ -1887,7 +1887,7 @@ POV: Character name narrator.
 Tense: Present tense, past tense, etc.
 Chapter Number: ${chapter.chapterNumber ?? "Number of the chapter."}
 SUMMARY: 1-3 lines. Key events and any shift in character dynamics. Notate how characters react, specific dialogue lines. 
-FORESHADOWING: 1-2 lines. Planted hints, ominous details, or setups likely to pay off later.
+FORESHADOWING: 1-2 lines. Ominous details, or setups likely to pay off later.
 Feel free to have personality.
 
 Chapter title: ${chapter.title || "Untitled"}
@@ -1947,10 +1947,9 @@ async function handleConsolidateSummaries({ storyId }) {
 
 Below are ${batch.length} summaries, oldest first. Rewrite each one shorter:
 - Keep the header lines (POV, Tense, Chapter Number) exactly as they are.
-- SUMMARY: 1-2 lines. Keep the events that matter later, who knows what, and key character shifts. Drop blow-by-blow detail.
-- FORESHADOWING: 1 line. Keep plants that are still unresolved or will matter later.
-- Keep every concrete fact: names, vows, reveals, relationships, rules, and anything that reads like it was added by the author. When in doubt, keep it.
-- Do not invent anything, merge chapters, or add commentary.
+- SUMMARY: 1-2 lines, keeping only the essential narrative beats.
+- Drop the foreshadowing lines entirely (since those are most useful when reading in real-time, not for a consolidated context summary).
+- Remove any repetition that bleeds across chapters.
 
 Return ONLY a JSON array in the same order, one object per summary, using the exact ids given:
 [{"id":"...","summary":"..."}]
