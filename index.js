@@ -30,7 +30,7 @@ const WIX_ACCOUNT_ID = process.env.WIX_ACCOUNT_ID;
 const WIX_SITE_ID = process.env.WIX_SITE_ID;
 
 // Model configuration
-const MUSE_MODEL      = "x-ai/grok-4.5";
+const MUSE_MODEL      = "meta/muse-spark-1.3";
 const GROK_MODEL      = "meta-llama/llama-3.1-70b-instruct";       // confirm the exact slug on OpenRouter
 const DEEPSEEK_MODEL  = "x-ai/grok-4.5";
 const COMMAND_R_MODEL = "cohere/command-r-08-2024";     // confirm the exact slug on OpenRouter
@@ -55,7 +55,7 @@ const TEMPTATION = [
   { name: 'Unrestrained', chain: SPICE_CHAIN,  note: 'Intensity: nothing held back. Follow the scene wherever it goes.' }
 ];
 
-const FERAL_NOTE = `FERAL MODE: ADJUST FERAL NOTE`;
+const FERAL_NOTE = `FERAL MODE: You are in feral mode. Be creative. Original. And Unhinged.`;
 
 function getTemptation(level) {
   const n = Number(level);
