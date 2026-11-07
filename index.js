@@ -45,6 +45,7 @@ const CHAT_CHAIN = [CHAT_MODEL, 'deepseek/deepseek-v3.1-terminus'];             
 
 const CHASTE_CHAIN = [MUSE_MODEL, GROK_MODEL];
 const SPICE_CHAIN  = [DEEPSEEK_MODEL, COMMAND_R_MODEL];
+const FERAL_CHAIN  = [DEEPSEEK_MODEL, COMMAND_R_MODEL];   // <-- add
 
 const TEMPTATION = [
   { name: 'Chaste',       chain: CHASTE_CHAIN, note: 'Content: No spice needed. May still reflect characters internal dirty thoughts.' },
@@ -53,6 +54,8 @@ const TEMPTATION = [
   { name: 'Surrender',    chain: SPICE_CHAIN,  note: 'Intensity: resistance gives way. Lean fully into the heat.' },
   { name: 'Unrestrained', chain: SPICE_CHAIN,  note: 'Intensity: nothing held back. Follow the scene wherever it goes.' }
 ];
+
+const FERAL_NOTE = `FERAL MODE: ADJUST FERAL NOTE`;
 
 function getTemptation(level) {
   const n = Number(level);
@@ -519,7 +522,7 @@ app.post('/devil-pov', async (req, res) => {
 // ============================================
 // UNHINGE
 // ============================================
-async function handleUnhinge({ chapterContent, characterTags, temptation }) {
+async function handleUnhinge({ chapterContent, characterTags, temptation, feralMode }) {
   console.log("😈 Unhinging chapter...");
 
   if (!chapterContent || chapterContent.trim().length === 0) {
@@ -536,6 +539,7 @@ async function handleUnhinge({ chapterContent, characterTags, temptation }) {
 
   const t = getTemptation(temptation);
   systemPrompt += `\n\n${t.note}`;
+  if (feralMode) systemPrompt += `\n\n${FERAL_NOTE}`;   // <-- add
   console.log(`🌡️ Temptation level: ${t.name}`);
 
   const messages = [
@@ -546,12 +550,12 @@ async function handleUnhinge({ chapterContent, characterTags, temptation }) {
     }
   ];
 
-  return await callAI(messages, 0.9, 3000, 'unhinge', t.chain);
+  return await callAI(messages, 0.9, 3000, 'unhinge', feralMode ? FERAL_CHAIN : t.chain);
 }
 // ============================================
 // UNLEASH
 // ============================================
-async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags, wraithrecordTags, wraithTags, lorebookTags, loreTags, temptation }) {
+async function handleUnleash({ chapterContent, characterTags, storyTags, catalystTags, wraithrecordTags, wraithTags, lorebookTags, loreTags, temptation, feralMode }) {
   console.log("🔥 Unleashing continuation...");
 
   // Accepts either key name from the page
@@ -596,6 +600,11 @@ async function handleUnleash({ chapterContent, characterTags, storyTags, catalys
 
   const t = getTemptation(temptation);
   systemPrompt += `\n\n${t.note}`;
+  if (feralMode) systemPrompt += `\n\n${FERAL_NOTE}`;
+  const t = getTemptation(temptation);
+  console.log(`🌡️ Temptation level: ${t.name}`);
+
+
   console.log(`🌡️ Temptation level: ${t.name}`);
 
   const messages = [
@@ -603,12 +612,12 @@ async function handleUnleash({ chapterContent, characterTags, storyTags, catalys
     { role: "user", content: `Continue this story. Pick up EXACTLY where it ends and keep going:\n\n${chapterContent}` }
   ];
 
-  return await callAI(messages, 0.85, 2000, 'unleash', t.chain);
+  return await callAI(messages, 0.85, 2000, 'unleash', feralMode ? FERAL_CHAIN : t.chain);
 }
 // ============================================
 // NO MERCY
 // ============================================
-async function handleNoMercy({ selectedText, temptation }) {
+async function handleNoMercy({ selectedText, temptation, feralMode }) {
   console.log("💀 No Mercy rewrite...");
   
   if (!selectedText || selectedText.trim().length === 0) {
@@ -617,11 +626,12 @@ async function handleNoMercy({ selectedText, temptation }) {
 
   const t = getTemptation(temptation);
   console.log(`🌡️ Temptation level: ${t.name}`);
+  const feralNote = feralMode ? `\n\n${FERAL_NOTE}` : '';   // <-- add
   
   const messages = [
     {
       role: "system",
-      content: `You are a merciless editor who rewrites text to be DARKER, MORE INTENSE, and MORE VISCERAL. Show no mercy. Make every word count. Amplify emotions, darken the tone, and make the prose more powerful and disturbing. Return ONLY the rewritten text with no explanations.\n\n${t.note}`
+      content: `You are a merciless editor who rewrites text to be DARKER, MORE INTENSE, and MORE VISCERAL. Show no mercy. Make every word count. Amplify emotions, darken the tone, and make the prose more powerful and disturbing. Return ONLY the rewritten text with no explanations.\n\n${t.note}${feralNote}`
     },
     {
       role: "user",
@@ -629,13 +639,13 @@ async function handleNoMercy({ selectedText, temptation }) {
     }
   ];
   
-  return await callAI(messages, 0.9, 1500, 'noMercy', t.chain);
+  return await callAI(messages, 0.9, 1500, 'noMercy', feralMode ? FERAL_CHAIN : t.chain);
 }
 
 // ============================================
 // INVOKE
 // ============================================
-async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags, wraithrecordTags, wraithTags, lorebookTags, loreTags, temptation }) {
+async function handleInvoke({ userPrompt, contextBefore, contextAfter, characterTags, storyTags, catalystTags, wraithrecordTags, wraithTags, lorebookTags, loreTags, temptation, feralMode }) {
   console.log("✨ Invoke starting...");
 
   // Accepts either key name from the page
@@ -681,6 +691,8 @@ Write ONLY what they asked for. Match the tone and style of the surrounding text
 
   const t = getTemptation(temptation);
   systemPrompt += `\n\n${t.note}`;
+  if (feralMode) systemPrompt += `\n\n${FERAL_NOTE}`;
+  const t = getTemptation(temptation);
   console.log(`🌡️ Temptation level: ${t.name}`);
 
   const messages = [
@@ -688,13 +700,13 @@ Write ONLY what they asked for. Match the tone and style of the surrounding text
     { role: "user", content: userPrompt }
   ];
   
-  return await callAI(messages, 0.85, 5500, 'invoke', t.chain);
+  return await callAI(messages, 0.85, 5500, 'invoke', feralMode ? FERAL_CHAIN : t.chain);
 }
 
 // ============================================
 // INTENSIFY
 // ============================================
-async function handleIntensify({ selectedText, temptation }) {
+async function handleIntensify({ selectedText, temptation, feralMode }) {
   console.log("⚡ Intensifying text...");
   
   if (!selectedText || selectedText.trim().length === 0) {
@@ -703,11 +715,12 @@ async function handleIntensify({ selectedText, temptation }) {
 
   const t = getTemptation(temptation);
   console.log(`🌡️ Temptation level: ${t.name}`);
+  const feralNote = feralMode ? `\n\n${FERAL_NOTE}` : '';   // <-- add
   
   const messages = [
     {
       role: "system",
-      content: `You are a master of prose enhancement. Take existing text and make it MORE INTENSE, MORE VIVID, MORE POWERFUL. Enhance imagery, strengthen verbs, deepen emotions, and make every sentence hit harder. Maintain the core meaning but amplify everything. Return ONLY the enhanced text.\n\n${t.note}`
+      content: `You are a master of prose enhancement. Take existing text and make it MORE INTENSE, MORE VIVID, MORE POWERFUL. Enhance imagery, strengthen verbs, deepen emotions, and make every sentence hit harder. Maintain the core meaning but amplify everything. Return ONLY the enhanced text.\n\n${t.note}${feralNote}`
     },
     {
       role: "user",
@@ -715,7 +728,7 @@ async function handleIntensify({ selectedText, temptation }) {
     }
   ];
   
-  return await callAI(messages, 0.8, 1500, 'intensify', t.chain);
+  return await callAI(messages, 0.8, 1500, 'intensify', feralMode ? FERAL_CHAIN : t.chain);
 }
 
 // ============================================
@@ -2044,5 +2057,6 @@ const PORT = process.env.PORT || 3333;
 app.listen(PORT, () => {
   console.log(`🔥 Devil Muse listening on port ${PORT}`);
   console.log(`   Chaste: ${CHASTE_CHAIN.join(', ')} | Spice: ${SPICE_CHAIN.join(', ')}`);
+  console.log(`🐺 Feral mode: ${feralMode ? 'ON' : 'off'}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
