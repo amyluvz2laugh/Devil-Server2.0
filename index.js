@@ -541,6 +541,7 @@ async function handleUnhinge({ chapterContent, characterTags, temptation, feralM
   systemPrompt += `\n\n${t.note}`;
   if (feralMode) systemPrompt += `\n\n${FERAL_NOTE}`;   // <-- add
   console.log(`🌡️ Temptation level: ${t.name}`);
+  console.log(`🐺 Feral mode: ${feralMode ? 'ON' : 'off'}`);
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -599,13 +600,10 @@ async function handleUnleash({ chapterContent, characterTags, storyTags, catalys
   }
 
   const t = getTemptation(temptation);
-  systemPrompt += `\n\n${t.note}`;
-  if (feralMode) systemPrompt += `\n\n${FERAL_NOTE}`;
-  const t = getTemptation(temptation);
-  console.log(`🌡️ Temptation level: ${t.name}`);
-
-
-  console.log(`🌡️ Temptation level: ${t.name}`);
+systemPrompt += `\n\n${t.note}`;
+if (feralMode) systemPrompt += `\n\n${FERAL_NOTE}`;
+console.log(`🌡️ Temptation level: ${t.name}`);
+console.log(`🐺 Feral mode: ${feralMode ? 'ON' : 'off'}`);  
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -627,6 +625,7 @@ async function handleNoMercy({ selectedText, temptation, feralMode }) {
   const t = getTemptation(temptation);
   console.log(`🌡️ Temptation level: ${t.name}`);
   const feralNote = feralMode ? `\n\n${FERAL_NOTE}` : '';   // <-- add
+  console.log(`🐺 Feral mode: ${feralMode ? 'ON' : 'off'}`);
   
   const messages = [
     {
@@ -652,6 +651,7 @@ async function handleInvoke({ userPrompt, contextBefore, contextAfter, character
   const wraith = wraithrecordTags ?? wraithTags;
   const lore = lorebookTags ?? loreTags;
   console.log("🏷️ Tags received:", { wraith, lore });
+  console.log(`🐺 Feral mode: ${feralMode ? 'ON' : 'off'}`);
   
   // Get context from Wix
   const [characterContext, catalystIntel, wraithIntel, loreIntel] = await Promise.all([
@@ -690,10 +690,9 @@ Write ONLY what they asked for. Match the tone and style of the surrounding text
   }
 
   const t = getTemptation(temptation);
-  systemPrompt += `\n\n${t.note}`;
-  if (feralMode) systemPrompt += `\n\n${FERAL_NOTE}`;
-  const t = getTemptation(temptation);
-  console.log(`🌡️ Temptation level: ${t.name}`);
+systemPrompt += `\n\n${t.note}`;
+if (feralMode) systemPrompt += `\n\n${FERAL_NOTE}`;
+console.log(`🌡️ Temptation level: ${t.name}`);
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -716,6 +715,7 @@ async function handleIntensify({ selectedText, temptation, feralMode }) {
   const t = getTemptation(temptation);
   console.log(`🌡️ Temptation level: ${t.name}`);
   const feralNote = feralMode ? `\n\n${FERAL_NOTE}` : '';   // <-- add
+  console.log(`🐺 Feral mode: ${feralMode ? 'ON' : 'off'}`);
   
   const messages = [
     {
@@ -2057,6 +2057,5 @@ const PORT = process.env.PORT || 3333;
 app.listen(PORT, () => {
   console.log(`🔥 Devil Muse listening on port ${PORT}`);
   console.log(`   Chaste: ${CHASTE_CHAIN.join(', ')} | Spice: ${SPICE_CHAIN.join(', ')}`);
-  console.log(`🐺 Feral mode: ${feralMode ? 'ON' : 'off'}`);
   console.log(`   API Key configured: ${process.env.OPENROUTER_API_KEY ? 'YES ✅' : 'NO ❌'}`);
 });
