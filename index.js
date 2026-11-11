@@ -31,21 +31,35 @@ const WIX_SITE_ID = process.env.WIX_SITE_ID;
 
 // Model configuration
 const MUSE_MODEL      = "meta/muse-spark-1.3";
-const GROK_MODEL      = "meta-llama/llama-3.1-70b-instruct";       // confirm the exact slug on OpenRouter
-const DEEPSEEK_MODEL  = "x-ai/grok-4.5";
-const COMMAND_R_MODEL = "cohere/command-r-08-2024";     // confirm the exact slug on OpenRouter
+const LLAMA_MODEL     = "meta-llama/llama-3.1-70b-instruct";
+const GROK_MODEL      = "x-ai/grok-4.5";
+const COMMAND_R_MODEL = "cohere/command-r-08-2024";
+
 // Beat Forge gets its own model, separate from Devil. Override in Railway Variables with BEATS_MODEL.
 const BEATS_MODEL = process.env.BEATS_MODEL || 'openai/gpt-5.1';
-const BEATS_CHAIN = [BEATS_MODEL, 'xiaomi/mimo-v2.6-pro']; // second one is the fallback
+const BEATS_FALLBACK = 'xiaomi/mimo-v2.6-pro';
+const BEATS_CHAIN = [BEATS_MODEL, BEATS_FALLBACK];
 
 // Character Chat gets its own model. Override in Railway Variables with CHAT_MODEL.
-const CHAT_MODEL = process.env.CHAT_MODEL || 'deepseek/deepseek-v3.1';   // swap in whatever you want as primary
-const CHAT_CHAIN = [CHAT_MODEL, 'deepseek/deepseek-v3.1-terminus'];              // second one is the fallback
+const CHAT_MODEL = process.env.CHAT_MODEL || 'deepseek/deepseek-v3.1';
+const CHAT_FALLBACK = 'deepseek/deepseek-v3.1-terminus';
+const CHAT_CHAIN = [CHAT_MODEL, CHAT_FALLBACK];
 
+// Temperature per model (edit these numbers to play around)
+const MODEL_TEMPS = {
+  [MUSE_MODEL]: 0.8,
+  [LLAMA_MODEL]: 1.1,
+  [GROK_MODEL]: 0.7,
+  [COMMAND_R_MODEL]: 0.9,
+  [BEATS_MODEL]: 0.9,
+  [BEATS_FALLBACK]: 0.9,
+  [CHAT_MODEL]: 0.85,
+  [CHAT_FALLBACK]: 0.85,
+};
 
-const CHASTE_CHAIN = [MUSE_MODEL, GROK_MODEL];
-const SPICE_CHAIN  = [DEEPSEEK_MODEL, COMMAND_R_MODEL];
-const FERAL_CHAIN  = [DEEPSEEK_MODEL, COMMAND_R_MODEL];   // <-- add
+const CHASTE_CHAIN = [MUSE_MODEL, LLAMA_MODEL];
+const SPICE_CHAIN  = [GROK_MODEL, COMMAND_R_MODEL];
+const FERAL_CHAIN  = [GROK_MODEL, COMMAND_R_MODEL];
 
 const TEMPTATION = [
   { name: 'Chaste',       chain: CHASTE_CHAIN, note: 'Content: No spice needed. May still reflect characters internal dirty thoughts.' },
@@ -88,7 +102,7 @@ async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType
         body: JSON.stringify({
           model: model,
           messages: messages,
-          temperature: temperature,
+          temperature: MODEL_TEMPS[model] ?? temperature,
           max_tokens: maxTokens
         })
       });
