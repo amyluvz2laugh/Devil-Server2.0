@@ -1016,6 +1016,8 @@ const BEATS_SYSTEM = [
   '- Continue from the story so far. Never contradict or repeat events in the chapter summaries.',
   '- Use the provided characters by name and respect their profiles. Honor the selected tropes by weaving them into the plot, not name-dropping them.',
   '- Respect the SPICE LEVEL in the request. It shapes the heat of the moves and dialogue, but beats stay planning notes.',
+  '- LOREBOOK intel is world law. Never contradict it. Use it to ground the moves, but never recite it.',
+  '- If an AUTHOR’S SPARK is given, it is the seed. Build the sequence around it as a hard constraint. Escalate it, don’t just restate it.',
   '- If there is no story context, work from the tropes and characters alone.',
   '',
   'FORMAT EXAMPLE ONLY. Do not reuse its plot or characters:',
@@ -1051,12 +1053,13 @@ const BEATS_SYSTEM = [
   'Queen: “And now they’re not.”'
 ].join('\n');
 
-function buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) {
+function buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters, loreIntel, spark }) {
   const parts = [];
   parts.push('Generate ' + count + ' sequence' + (count > 1 ? 's' : '') + '. Each sequence is one core purpose plus three beats with dialogue.');
   parts.push('TYPE: ' + TYPE_GUIDE[outputType]);
   parts.push('SPICE LEVEL ' + spice + '/4 — ' + SPICE_GUIDE[spice]);
   parts.push(tropes.length ? 'TROPES: ' + tropes.join(', ') : 'TROPES: none selected. Choose what fits the story.');
+  if (spark) parts.push('AUTHOR’S SPARK (build the sequence around this):\n' + spark);
   if (story) parts.push('STORY: ' + story.title);
   if (summaries.length) {
     parts.push('STORY SO FAR (oldest to newest):\n' +
@@ -1064,6 +1067,9 @@ function buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, 
   }
   if (characters.length) {
     parts.push('CHARACTERS:\n' + characters.map(c => '- ' + c.name + ': ' + (c.bio || 'no profile')).join('\n'));
+  }
+  if (loreIntel) {
+    parts.push('LOREBOOK (WORLD RULES):\n' + String(loreIntel).slice(0, 4000));
   }
   return parts.join('\n\n');
 }
@@ -1139,6 +1145,8 @@ async function handleGenerateBeats(body) {
   const spice = Math.min(Math.max(parseInt(b.spice) || 2, 1), 4);
   const tropes = (Array.isArray(b.tropes) ? b.tropes : []).slice(0, 12).map(String);
   const story = b.story && b.story.title ? { title: String(b.story.title) } : null;
+  const spark = String(b.spark || '').trim().slice(0, 200);
+  const loreTags = (Array.isArray(b.loreTags) ? b.loreTags : []).slice(0, 6).map(String).filter(Boolean);
 
   const summaries = (Array.isArray(b.recentSummaries) ? b.recentSummaries : []).slice(0, 10).map(s => ({
     title: String(s.title || '').slice(0, 120),
@@ -1150,31 +1158,13 @@ async function handleGenerateBeats(body) {
     bio: String(c.bio || '').slice(0, 800)
   })).filter(c => c.name);
 
-  console.log('🌡️ Beats: ' + outputType + ' x' + count + ', spice ' + spice + ', ' + tropes.length + ' tropes, ' + summaries.length + ' summaries, ' + characters.length + ' characters');
+  const loreIntel = loreTags.length ? await getLorebookTags(loreTags) : '';
 
-      if (outputType === 'plot-drives') {
-    const pdMessages = [
-      { role: 'system', content: PLOT_DRIVE_SYSTEM },
-      { role: 'user', content: buildPlotDrivePrompt({ spice, tropes, story, summaries, characters }) }
-    ];
+  console.log('🌡️ Beats: ' + outputType + ' x' + count + ', spice ' + spice + ', ' + tropes.length + ' tropes, ' + summaries.length + ' summaries, ' + characters.length + ' characters, ' + loreTags.length + ' lore tags, spark ' + (spark ? 'YES' : 'NO'));
 
-    const pdRaw = await callAI(pdMessages, 0.9, 5000, 'generatePlotDrive', BEATS_CHAIN);
-    console.log('🖤 RAW plot drive (' + String(pdRaw).length + ' chars):\n' + String(pdRaw).slice(0, 2500));
-
-    const scene = parsePlotDrive(pdRaw);
-
-    if (!scene) {
-      return [{
-        corePurpose: 'RAW REPLY (could not be split into a scene)',
-        beats: [{ title: 'Model reply', move: String(pdRaw).trim() || '(empty reply)', dialogue: [] }]
-      }];
-    }
-    return [plotDriveToLegacy(scene)];
-  }
-  
   const messages = [
     { role: 'system', content: BEATS_SYSTEM },
-    { role: 'user', content: buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters }) }
+    { role: 'user', content: buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters, loreIntel, spark }) }
   ];
 
   const raw = await callAI(messages, 0.9, 4000, 'generateBeats', BEATS_CHAIN);
@@ -1182,7 +1172,6 @@ async function handleGenerateBeats(body) {
 
   let sequences = parseSequences(raw);
 
-  // Never throw on a parse miss. Show the raw reply in the panel instead.
   if (!sequences.length) {
     sequences = [{
       corePurpose: 'RAW REPLY (could not be split into beats)',
