@@ -66,6 +66,10 @@ const CHASTE_CHAIN = [MUSE_MODEL, LLAMA_MODEL];
 const SPICE_CHAIN  = [GROK_MODEL, COMMAND_R_MODEL];
 const FERAL_CHAIN  = [GROK_MODEL, COMMAND_R_MODEL];
 
+// ============================================
+// TEMPTATION NOTE FOR MANUSCRIPT PAGE
+// ============================================
+
 const TEMPTATION = [
   { name: 'Chaste',       chain: CHASTE_CHAIN, note: 'Content: No spice needed. May still reflect characters internal dirty thoughts.' },
   { name: 'Temptation',   chain: SPICE_CHAIN,  note: 'Intensity: a slow pull. Build tension, longing and restraint.' },
