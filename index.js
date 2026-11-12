@@ -39,6 +39,11 @@ const COMMAND_R_MODEL = "cohere/command-r-08-2024";
 const BEATS_MODEL = process.env.BEATS_MODEL || 'openai/gpt-5.1';
 const BEATS_FALLBACK = 'xiaomi/mimo-v2.6-pro';
 const BEATS_CHAIN = [BEATS_MODEL, BEATS_FALLBACK];
+// Heat 3+ (Burn / Inferno) goes to its own chain.
+const BEATS_SPICE_THRESHOLD = 3;
+const BEATS_SPICE_MODEL = process.env.BEATS_SPICE_MODEL || 'x-ai/grok-4.5';   // swap in your real slug
+const BEATS_SPICE_FALLBACK = 'x-ai/grok-4.5';                                  // swap in your real slug
+const BEATS_SPICE_CHAIN = [BEATS_SPICE_MODEL, BEATS_SPICE_FALLBACK];
 
 // Character Chat gets its own model. Override in Railway Variables with CHAT_MODEL.
 const CHAT_MODEL = process.env.CHAT_MODEL || 'deepseek/deepseek-v3.1';
@@ -1167,8 +1172,12 @@ async function handleGenerateBeats(body) {
     { role: 'user', content: buildBeatsPrompt({ outputType, count, spice, tropes, story, summaries, characters, loreIntel, spark }) }
   ];
 
-  const raw = await callAI(messages, 0.9, 4000, 'generateBeats', BEATS_CHAIN);
+  const useSpiceChain = spice >= BEATS_SPICE_THRESHOLD;
+  const chain = useSpiceChain ? BEATS_SPICE_CHAIN : BEATS_CHAIN;
+  console.log('🧭 Beat chain: ' + (useSpiceChain ? 'SPICE' : 'STANDARD') + ' -> ' + chain[0]);
+  const raw = await callAI(messages, 0.9, 4000, 'generateBeats', chain);
   console.log('🩸 RAW reply (' + String(raw).length + ' chars):\n' + String(raw).slice(0, 2500));
+   
 
   let sequences = parseSequences(raw);
 
