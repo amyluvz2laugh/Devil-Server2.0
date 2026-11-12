@@ -52,10 +52,10 @@ const CHAT_CHAIN = [CHAT_MODEL, CHAT_FALLBACK];
 
 // Temperature per model (edit these numbers to play around)
 const MODEL_TEMPS = {
-  [MUSE_MODEL]: 0.8,
+  [MUSE_MODEL]: 0.65,
   [LLAMA_MODEL]: 1.1,
-  [GROK_MODEL]: 0.7,
-  [COMMAND_R_MODEL]: 0.9,
+  [GROK_MODEL]: 0.68,
+  [COMMAND_R_MODEL]: 0.55,
   [BEATS_MODEL]: 0.9,
   [BEATS_FALLBACK]: 0.9,
   [CHAT_MODEL]: 0.85,
