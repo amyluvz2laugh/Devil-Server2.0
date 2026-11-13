@@ -31,13 +31,13 @@ const WIX_SITE_ID = process.env.WIX_SITE_ID;
 
 // Model configuration
 const MUSE_MODEL      = "meta/muse-spark-1.3";
-const LLAMA_MODEL     = "meta-llama/llama-3.1-70b-instruct";
+const LLAMA_MODEL     = "meta-llama/llama-4-scout";
 const GROK_MODEL      = "x-ai/grok-4.5";
 const COMMAND_R_MODEL = "cohere/command-r-08-2024";
 
 // Beat Forge gets its own model, separate from Devil. Override in Railway Variables with BEATS_MODEL.
 const BEATS_MODEL = process.env.BEATS_MODEL || 'openai/gpt-5.1';
-const BEATS_FALLBACK = 'xiaomi/mimo-v2.6-pro';
+const BEATS_FALLBACK = 'openai/gpt-4o-mini';
 const BEATS_CHAIN = [BEATS_MODEL, BEATS_FALLBACK];
 // Heat 3+ (Burn / Inferno) goes to its own chain.
 const BEATS_SPICE_THRESHOLD = 3;
