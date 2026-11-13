@@ -42,7 +42,7 @@ const BEATS_CHAIN = [BEATS_MODEL, BEATS_FALLBACK];
 // Heat 3+ (Burn / Inferno) goes to its own chain.
 const BEATS_SPICE_THRESHOLD = 3;
 const BEATS_SPICE_MODEL = process.env.BEATS_SPICE_MODEL || 'x-ai/grok-4.5';   // swap in your real slug
-const BEATS_SPICE_FALLBACK = 'x-ai/grok-4.5';                                  // swap in your real slug
+const BEATS_SPICE_FALLBACK = 'mistralai/mistral-large-4-0';                                  // swap in your real slug
 const BEATS_SPICE_CHAIN = [BEATS_SPICE_MODEL, BEATS_SPICE_FALLBACK];
 
 // Character Chat gets its own model. Override in Railway Variables with CHAT_MODEL.
