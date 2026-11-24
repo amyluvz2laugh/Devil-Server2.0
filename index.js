@@ -1939,7 +1939,7 @@ ${text}`
 // CONSOLIDATE SUMMARIES (read-only: reads Wix, returns text, writes nothing)
 // ============================================
 const KEEP_LATEST = 1;             // newest N summaries are never touched
-const MIN_CHARS_TO_CONDENSE = 450; // shorter than this = already short, leave alone
+const MIN_CHARS_TO_CONDENSE = 350; // shorter than this = already short, leave alone
 const BATCH_SIZE = 10;             // oldest N eligible summaries per click
 
 function toTime(v) {
@@ -1979,7 +1979,7 @@ async function handleConsolidateSummaries({ storyId }) {
 Below are ${batch.length} summaries, oldest first. Rewrite each one shorter:
 - Keep the header lines (POV, Tense, Chapter Number) exactly as they are.
 - SUMMARY: 1-2 lines, keeping only the essential narrative beats.
-- Drop the foreshadowing lines entirely (since those are most useful when reading in real-time, not for a consolidated context summary).
+- Drop the foreshadowing lines entirely.
 - Remove any repetition that bleeds across chapters.
 
 Return ONLY a JSON array in the same order, one object per summary, using the exact ids given:
