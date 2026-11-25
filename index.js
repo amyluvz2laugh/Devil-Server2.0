@@ -655,15 +655,15 @@ async function handleNoMercy({ selectedText, temptation, feralMode }) {
   const messages = [
     {
       role: "system",
-      content: `You are a merciless editor who rewrites text to be DARKER, MORE INTENSE, and MORE VISCERAL. Show no mercy. Make every word count. Amplify emotions, darken the tone, and make the prose more powerful and disturbing. Return ONLY the rewritten text with no explanations.\n\n${t.note}${feralNote}`
+      content: `You are a merciless editor who cuts the fat. Show no mercy. Make every word count. Remove repeition, overused words, phrases, redundant metaphors and descriptions. Keep sentence opening varying. Keep the core text and preserve its voice. Prioritize drag spots. \n\n${t.note}${feralNote}`
     },
     {
       role: "user",
-      content: `Rewrite this with NO MERCY - make it darker, more intense, more powerful:\n\n${selectedText}`
+      content: `Edit this with NO MERCY - remove the fat:\n\n${selectedText}`
     }
   ];
   
-  return await callAI(messages, 0.9, 1500, 'noMercy', feralMode ? FERAL_CHAIN : t.chain);
+  return await callAI(messages, 0.9, 2500, 'noMercy', feralMode ? FERAL_CHAIN : t.chain);
 }
 
 // ============================================
