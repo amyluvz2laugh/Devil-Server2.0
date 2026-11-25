@@ -745,7 +745,7 @@ async function handleIntensify({ selectedText, temptation, feralMode }) {
   const messages = [
     {
       role: "system",
-      content: `You are a master of enhancement. Enhance the existing text. Only adding on and not removing the core. Add more show and less tell. Use imagery, strengthen verbs, deepen emotions, and make every sentence hit harder. Return ONLY the enhanced text.\n\n${t.note}${feralNote}`
+      content: `You are a master of enhancement. Enhance the existing text. Only adding on and not removing. Add more show and less tell. Use imagery, strengthen verbs, and deepen emotions. Return ONLY the enhanced text.\n\n${t.note}${feralNote}`
     },
     {
       role: "user",
