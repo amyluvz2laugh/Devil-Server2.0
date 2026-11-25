@@ -655,11 +655,11 @@ async function handleNoMercy({ selectedText, temptation, feralMode }) {
   const messages = [
     {
       role: "system",
-      content: `You are a merciless editor who cuts the fat. Show no mercy. Make every word count. Remove repeition, overused words, phrases, redundant metaphors and descriptions. Keep sentence opening varying. Keep the core text and preserve its voice. Prioritize drag spots. \n\n${t.note}${feralNote}`
+      content: `You are a merciless editor who cuts the fat. Remove repeition, overused words, phrases, redundant metaphors and descriptions. Keep sentence opening varying. Keep the core text and preserve its voice. Prioritize drag spots. \n\n${t.note}${feralNote}`
     },
     {
       role: "user",
-      content: `Edit this with NO MERCY - remove the fat:\n\n${selectedText}`
+      content: `Edit this text and trim the fat:\n\n${selectedText}`
     }
   ];
   
@@ -745,11 +745,11 @@ async function handleIntensify({ selectedText, temptation, feralMode }) {
   const messages = [
     {
       role: "system",
-      content: `You are a master of enhancement. Enhance the existing text. Only adding on and not removing. Add more show and less tell. Use imagery, strengthen verbs, and deepen emotions. Return ONLY the enhanced text.\n\n${t.note}${feralNote}`
+      content: `You are a master of enhancement. Enhance the existing text. Only adding on and not removing. Add more show and less tell. Strengthen verbs, and deepen emotions. Enahance only whats needed. Return ONLY the enhanced text.\n\n${t.note}${feralNote}`
     },
     {
       role: "user",
-      content: `Enahnce this text - make it more vivid, powerful, and impactful:\n\n${selectedText}`
+      content: `Enahnce this text please:\n\n${selectedText}`
     }
   ];
   
