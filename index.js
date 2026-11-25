@@ -745,15 +745,15 @@ async function handleIntensify({ selectedText, temptation, feralMode }) {
   const messages = [
     {
       role: "system",
-      content: `You are a master of prose enhancement. Take existing text and make it MORE INTENSE, MORE VIVID, MORE POWERFUL. Enhance imagery, strengthen verbs, deepen emotions, and make every sentence hit harder. Maintain the core meaning but amplify everything. Return ONLY the enhanced text.\n\n${t.note}${feralNote}`
+      content: `You are a master of enhancement. Enhance the existing text. Only adding on and not removing the core. Add more show and less tell. Use imagery, strengthen verbs, deepen emotions, and make every sentence hit harder. Return ONLY the enhanced text.\n\n${t.note}${feralNote}`
     },
     {
       role: "user",
-      content: `Intensify and enhance this text - make it more vivid, powerful, and impactful:\n\n${selectedText}`
+      content: `Enahnce this text - make it more vivid, powerful, and impactful:\n\n${selectedText}`
     }
   ];
   
-  return await callAI(messages, 0.8, 1500, 'intensify', feralMode ? FERAL_CHAIN : t.chain);
+  return await callAI(messages, 0.8, 2500, 'intensify', feralMode ? FERAL_CHAIN : t.chain);
 }
 
 // ============================================
