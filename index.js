@@ -91,7 +91,7 @@ function getTemptation(level) {
 // ============================================
 // AI CALL WITH FALLBACK + TRAINING DATA LOGGING
 // ============================================
-async function callAI(messages, temperature = 0.85, maxTokens = 3500, buttonType = null, chain = CHASTE_CHAIN) {
+async function callAI(messages, temperature = 0.85, maxTokens = 5500, buttonType = null, chain = CHASTE_CHAIN) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   
   if (!apiKey) {
@@ -682,30 +682,48 @@ console.log(`🐺 Feral mode: ${feralMode ? 'ON' : 'off'}`);
 // ============================================
 // NO MERCY
 // ============================================
-async function handleNoMercy({ selectedText, temptation, feralMode }) {
+async function handleNoMercy({ selectedText, temptation, feralMode, catalystTags }) {
   console.log("💀 No Mercy rewrite...");
-  
+
   if (!selectedText || selectedText.trim().length === 0) {
     throw new Error("No text selected for rewrite");
   }
 
   const t = getTemptation(temptation);
   console.log(`🌡️ Temptation level: ${t.name}`);
-  const feralNote = feralMode ? `\n\n${FERAL_NOTE}` : '';   // <-- add
+  const feralNote = feralMode ? `\n\n${FERAL_NOTE}` : '';
   console.log(`🐺 Feral mode: ${feralMode ? 'ON' : 'off'}`);
-  
+
+   // OPTIONAL editing brief from catalyst tags: never required, never blocks the edit
+  let catalystIntel = '';
+  if (Array.isArray(catalystTags) && catalystTags.length > 0) {
+    try {
+      catalystIntel = await getCatalystIntel(catalystTags);   // same call Invoke makes
+    } catch (err) {
+      console.log("⚠️ Catalyst intel unavailable for No Mercy:", err.message);
+    }
+    // if the lookup found nothing, the tag names still carry the idea (e.g. #JawOverworking)
+    if (!catalystIntel) catalystIntel = `Catalyst tags: ${catalystTags.join(', ')}`;
+  }
+  const briefNote = catalystIntel
+    ? `\n\nEDITING BRIEF FROM THE AUTHOR (this is the specific job). Apply it as an edit to the selected text only, without inventing new plot events, follow directions exactly:\n${catalystIntel}`
+    : '';
+  console.log(`🏷️ Catalyst brief: ${briefNote ? 'ON' : 'none'}`);
+
   const messages = [
     {
       role: "system",
-      content: `You are a merciless editor who cuts the fat. Remove repeition, overused words, phrases, redundant metaphors and descriptions. Keep sentence opening varying. Keep the core text and preserve its voice. Prioritize drag spots. \n\n${t.note}${feralNote}`
+      content: `You are an editor who helps the author cut fat off the story. Remove repeition, overused words, phrases, redundant metaphors and descriptions. Keep sentence opening varying. Keep the core text and preserve its voice. Prioritize drag spots. \n\n${t.note}${feralNote}${briefNote}`
     },
     {
       role: "user",
-      content: `Edit this text and trim the fat:\n\n${selectedText}`
+      content: briefNote
+        ? `Edit this text. Apply the editing brief:\n\n${selectedText}`
+        : `Edit this text:\n\n${selectedText}`
     }
   ];
-  
-  return await callAI(messages, 0.9, 2500, 'noMercy', feralMode ? FERAL_CHAIN : t.chain);
+
+  return await callAI(messages, 0.9, 5500, 'noMercy', feralMode ? FERAL_CHAIN : t.chain);
 }
 
 // ============================================
