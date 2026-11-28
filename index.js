@@ -30,7 +30,7 @@ const WIX_ACCOUNT_ID = process.env.WIX_ACCOUNT_ID;
 const WIX_SITE_ID = process.env.WIX_SITE_ID;
 
 // Model configuration
-const MUSE_MODEL      = "meta/muse-spark-1.3";
+const MUSE_MODEL      = "moonshotai/kimi-k3.1-pro:batch";
 const LLAMA_MODEL     = "meta-llama/llama-4-scout";
 const GROK_MODEL      = "x-ai/grok-4.5";
 const COMMAND_R_MODEL = "cohere/command-r-08-2024";
